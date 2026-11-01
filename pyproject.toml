@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "darija-decoding"
+version = "0.1.0"
+description = "Making LLMs speak natural Moroccan Darija by changing how they decode, not what they know."
+requires-python = ">=3.10"
+dependencies = [
+    "torch",
+    # Gemma 4 and Qwen3.5 need a recent release: install with `pip install -U`.
+    "transformers",
+    "accelerate",
+    "bitsandbytes",
+    "pyyaml",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
