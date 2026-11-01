@@ -1,0 +1,19 @@
+# Decoding settings for exploration runs.
+# Every prompt version is generated once per setting.
+
+system_prompt: null      # no system prompt: see the model's raw behavior
+enable_thinking: false   # Gemma 4 and Qwen3.5 can reason first; we want the direct answer
+max_new_tokens: 300
+seed: 42
+
+settings:
+  greedy:
+    do_sample: false
+  sampled:
+    do_sample: true
+    temperature: 0.7
+    top_p: 0.9
+    top_k: 0             # off; otherwise the model's own default (e.g. 64) applies
+
+# Saved alongside each generated token (used from step 1c on).
+top_k_logged: 5

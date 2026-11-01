@@ -1,0 +1,2 @@
+# Normalize line endings: the repo is edited on Windows and run on Linux (Colab).
+* text=auto eol=lf

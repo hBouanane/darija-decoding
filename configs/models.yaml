@@ -1,0 +1,36 @@
+# Candidate models, sized for a free Colab T4 (~15 GB VRAM).
+#
+# Loaded through transformers + bitsandbytes 4-bit, not GGUF/llama.cpp:
+# later phases (logit lens, steering) need hidden states and raw logits.
+# Keep the same quantization across all experiments so results compare.
+
+quantization:
+  load_in_4bit: true
+  bnb_4bit_quant_type: nf4
+  bnb_4bit_compute_dtype: float16   # T4 has no native bfloat16
+
+models:
+  gemma4-12b:
+    hf_id: google/gemma-4-12B-it
+    gated: false
+    # 12B dense, 48 layers. Trained in bf16: check float16 outputs for
+    # NaN/garbage in step 1b. Emits an empty thought block even with
+    # thinking off; strip it before saving the answer.
+
+  qwen3.5-9b:
+    hf_id: Qwen/Qwen3.5-9B
+    gated: false
+    # 9B, 32 layers, hybrid (3 Gated DeltaNet : 1 attention). Thinking is
+    # on by default; we turn it off (see generation.yaml). Needs a recent
+    # transformers; check 4-bit loading and speed on T4 in step 1b.
+
+  atlas-chat-9b:
+    hf_id: MBZUAI-Paris/Atlas-Chat-9B
+    gated: false
+    # Gemma 2 9B fine-tuned on Darija. Reference point, not a target:
+    # shows what Darija training changes. Optional.
+
+# Too big for a T4 even at 4-bit (smallest Qwen3.8 is 27B). Use with a
+# larger GPU later if needed.
+#   qwen3.8-27b:
+#     hf_id: Qwen/Qwen3.8-27B

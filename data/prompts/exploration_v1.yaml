@@ -1,0 +1,243 @@
+# Exploration prompt set v1
+#
+# Each prompt has 5 versions of the same request:
+#   darija_ar       Darija, Arabic script        (no instruction appended)
+#   darija_arabizi  Darija, Arabizi              (no instruction appended)
+#   msa             Modern Standard Arabic       (+ instructions.msa)
+#   en              English                      (+ instructions.en)
+#   fr              French                       (+ instructions.fr)
+#
+# watch:    Darija words a natural answer would likely use. If the MSA
+#           equivalent shows up instead, that's a leak. Edit freely.
+# expected: (rewrite prompts only) a natural Darija rewrite, for reference.
+#
+# To add a prompt: copy a block, give it a new unique id.
+# To drop a version for one prompt: delete its line under `text`.
+
+version: 1
+
+arabizi_convention: "3=ع 7=ح 9=ق 2=ء gh=غ kh=خ ch=ش"
+
+instructions:
+  msa: "أجب بالدارجة المغربية وبالحروف العربية."
+  en: "Answer in Moroccan Darija, in Arabic script."
+  fr: "Réponds en darija marocaine, en lettres arabes."
+
+prompts:
+  # ---------------------------------------------------------------- casual
+  - id: casual_01
+    category: casual
+    text:
+      darija_ar: "سلام، لاباس عليك؟ شنو ناوي دير نهار لحد؟"
+      darija_arabizi: "salam, labas 3lik? chno nawi dir nhar l7ed?"
+      msa: "‏السلام عليكم كيف حالك؟ ماذا تنوي أن تفعل يوم الأحد؟"
+      en: "Hi, how are you? What are you planning to do on Sunday?"
+      fr: "Salut, ça va ? Qu'est-ce que tu comptes faire dimanche ?"
+
+  - id: casual_04
+    category: casual
+    text:
+      darija_ar: "علاش لمغاربة كيعجبهوم أتاي بزاف؟"
+      darija_arabizi: "3lach lmgharba kay3jabhum atay bzaf?"
+      msa: "لماذا يحب المغاربة الشاي كثيرا؟"
+      en: "Why do Moroccans love tea so much?"
+      fr: "Pourquoi les Marocains aiment-ils autant le thé ?"
+
+  - id: casual_05
+    category: casual
+    text:
+      darija_ar: "مقلق بزاف ليوما، هضر معايا شوية"
+      darija_arabizi: "m9ele9 bzf lyoma , hder m3aya chwiya"
+      msa: "أنا منزعج كثيرا اليوم، تحدث معي قليلا"
+      en: "I'm really upset today, talk to me for a bit"
+      fr: "Je suis vraiment contrarié aujourd'hui, parle-moi un peu"
+
+  # ------------------------------------------------------------- practical
+  - id: practical_01
+    category: practical
+    text:
+      darija_ar: "بغيت نمشي من كازا لمراكش، شنو حسن: تران ولا لكار؟"
+      darija_arabizi: "bghit nmchi men casa l marrakech, chno 7sen: tran wla lkar?"
+      msa: "أريد أن أذهب من الدار البيضاء إلى مراكش، ما الأفضل: القطار أم الحافلة؟"
+      en: "I want to go from Casablanca to Marrakech, what's better: the train or the bus?"
+      fr: "Je veux aller de Casablanca à Marrakech, c'est quoi le mieux : le train ou le car ?"
+
+  - id: practical_02
+    category: practical
+    text:
+      darija_ar: "عييت بزاف من لخدمة هاد سيمانة، عطيني شي نصيحة باش نرتاح شوية"
+      darija_arabizi: "3yit bzf man lkhedma had simana, 3tini chi nasi7a bach nrta7 chwiya"
+      msa: "أشعر بتعب شديد من العمل هذا الأسبوع، أعطني نصيحة لكي أرتاح قليلا"
+      en: "I'm really tired from work this week, give me some advice to relax a bit"
+      fr: "Je suis très fatigué du travail cette semaine, donne-moi un conseil pour me reposer un peu"
+
+  - id: practical_03
+    category: practical
+    text:
+      darija_ar: "عندي ضياف غدا، شنو نطيب ليهم؟"
+      darija_arabizi: "3ndi dyaf ghedda, chno ntiyeb lihom?"
+      msa: "عندي ضيوف غدا، ماذا أطبخ لهم؟"
+      en: "I have guests tomorrow, what should I cook for them?"
+      fr: "J'ai des invités demain, qu'est-ce que je leur prépare ?"
+
+  - id: practical_04
+    category: practical
+    text:
+      darija_ar: "تليفوني ولى ثقيل بزاف، شنو ندير؟"
+      darija_arabizi: "tilifouni wela t9il bzaf, chno ndir?"
+      msa: "أصبح هاتفي بطيئا جدا، ماذا أفعل؟"
+      en: "My phone has become really slow, what should I do?"
+      fr: "Mon téléphone est devenu très lent, qu'est-ce que je fais ?"
+
+  - id: practical_05
+    category: practical
+    text:
+      darija_ar: "قال ليا طبيب عندي ضغط، شنو خاصني ناكل؟"
+      darija_arabizi: "gal liya tbib 3ndi deght, chno khassni nakol?"
+      msa: "قال لي الطبيب إن عندي ارتفاع ضغط الدم، ماذا يجب أن آكل؟"
+      en: "The doctor told me I have high blood pressure, what should I eat?"
+      fr: "Le médecin m'a dit que j'ai de la tension, qu'est-ce que je dois manger ?"
+
+  # --------------------------------------------------------------- explain
+  - id: explain_01
+    category: explain
+    text:
+      darija_ar: "شرح ليا كيفاش كيطيب طاجين ديال دجاج بزيتون"
+      darija_arabizi: "chre7 liya kifach kaytib tajine dyal djaj b zitoun"
+      msa: "اشرح لي كيف يُطبخ طاجين الدجاج بالزيتون"
+      en: "Explain to me how to cook chicken tagine with olives"
+      fr: "Explique-moi comment on prépare un tajine de poulet aux olives"
+
+  - id: explain_02
+    category: explain
+    text:
+      darija_ar: "علاش سما زرقا؟ شرح ليا بحال إلا كنت دري صغير"
+      darija_arabizi: "3lach sma zer9a? chre7 liya b7al ila kant derri sghir"
+      msa: "لماذا السماء زرقاء؟ اشرح لي كأنني طفل صغير"
+      en: "Why is the sky blue? Explain it to me like I'm a little kid"
+      fr: "Pourquoi le ciel est bleu ? Explique-le-moi comme si j'étais un petit enfant"
+
+  - id: explain_03
+    category: explain
+    text:
+      darija_ar: "شنو هو ذكاء الاصطناعي؟ عطيني شرح مبسط"
+      darija_arabizi: "achnahowa dka2 l istina3i? 3tini char7 mobassat"
+      msa: "ما هو الذكاء الاصطناعي؟ اشرحه لي بكلام بسيط"
+      en: "What is artificial intelligence? Explain it to me in simple words"
+      fr: "C'est quoi l'intelligence artificielle ? Explique-la-moi avec des mots simples"
+
+  - id: explain_05
+    category: explain
+    text:
+      darija_ar: "علاش خاص لواحد يشرب لما بزاف فصيف؟"
+      darija_arabizi: "3lach khass lwa7ed ychreb lma bzaf f sif?"
+      msa: "لماذا يجب على الإنسان أن يشرب الكثير من الماء في الصيف؟"
+      en: "Why should you drink a lot of water in summer?"
+      fr: "Pourquoi faut-il boire beaucoup d'eau en été ?"
+
+  # ----------------------------------------------------------------- story
+  - id: story_01
+    category: story
+    text:
+      darija_ar: "عاود ليا شي قصة صغيرة على جحا"
+      darija_arabizi: "3awed liya chi 9isa sghira 3la j7a"
+      msa: "احكِ لي قصة قصيرة عن جحا"
+      en: "Tell me a short story about Juha"
+      fr: "Raconte-moi une petite histoire de Joha"
+
+  - id: story_02
+    category: story
+    text:
+      darija_ar: "عاود ليا على شي واحد تلف فلمدينة لقديمة ديال فاس"
+      darija_arabizi: "3awd liya 3la chiwa7ed tlef f lmdina l9dima dyal fes"
+      msa: "احكِ لي عن شخص ضاع في المدينة القديمة بفاس"
+      en: "Tell me a story about someone who got lost in the old medina of Fes"
+      fr: "Raconte-moi l'histoire de quelqu'un qui s'est perdu dans la médina de Fès"
+
+  # - id: story_03
+  #   category: story
+  #   watch: [سمح ليا, تعطلت, ماشي بالقصد]
+  #   text:
+  #     darija_ar: "كتب ليا ميساج نعتذر فيه لخويا حيت تعطلت عليه"
+  #     darija_arabizi: "kteb liya message n3tadr fih l khoya 7it t3ttelt 3lih"
+  #     msa: "اكتب لي رسالة أعتذر فيها لأخي لأنني تأخرت عليه"
+  #     en: "Write me a message apologizing to my brother because I was late"
+  #     fr: "Écris-moi un message pour m'excuser auprès de mon frère parce que je suis arrivé en retard"
+
+  # - id: story_04
+  #   category: story
+  #   watch: [بشحال, غالي, نقص]
+  #   text:
+  #     darija_ar: "دير ليا حوار بين بياع فالسوق وكليان كيتفاهمو على التمن"
+  #     darija_arabizi: "dir liya 7iwar bin biya3 f souk w klyan kayttfahmo 3la taman"
+  #     msa: "اكتب لي حوارا بين بائع في السوق وزبون يتفاوضان على الثمن"
+  #     en: "Write me a dialogue between a market seller and a customer bargaining over the price"
+  #     fr: "Écris-moi un dialogue entre un vendeur au souk et un client qui négocient le prix"
+
+  # - id: story_05
+  #   category: story
+  #   watch: [العيد, الحولي, العائلة]
+  #   text:
+  #     darija_ar: "عاود ليا على نهار العيد فدار الجدة"
+  #     darija_arabizi: "3awed liya 3la nhar l3id f dar jedda"
+  #     msa: "احكِ لي عن يوم العيد في بيت الجدة"
+  #     en: "Tell me about Eid day at grandma's house"
+  #     fr: "Raconte-moi le jour de l'Aïd chez la grand-mère"
+
+  # # --------------------------------------------------------------- rewrite
+  # # The MSA sentence stays identical across versions; only the request
+  # # around it changes language.
+  # - id: rewrite_01
+  #   category: rewrite
+  #   watch: [بغيت, نمشي, دابا, شوية]
+  #   expected: "بغيت نمشي للسوق دابا نشري شوية د الخضرة"
+  #   text:
+  #     darija_ar: "عاود كتب هاد الجملة بالدارجة: «أريد أن أذهب إلى السوق الآن لأشتري بعض الخضر»"
+  #     darija_arabizi: "3awed kteb had jomla b darija: «أريد أن أذهب إلى السوق الآن لأشتري بعض الخضر»"
+  #     msa: "أعد صياغة هذه الجملة: «أريد أن أذهب إلى السوق الآن لأشتري بعض الخضر»"
+  #     en: "Rewrite this sentence: «أريد أن أذهب إلى السوق الآن لأشتري بعض الخضر»"
+  #     fr: "Réécris cette phrase : «أريد أن أذهب إلى السوق الآن لأشتري بعض الخضر»"
+
+  # - id: rewrite_02
+  #   category: rewrite
+  #   watch: [شنو, كدير, العشية]
+  #   expected: "شنو كدير فالعشية عادة؟"
+  #   text:
+  #     darija_ar: "عاود كتب هاد الجملة بالدارجة: «ماذا تفعل في المساء عادةً؟»"
+  #     darija_arabizi: "3awed kteb had jomla b darija: «ماذا تفعل في المساء عادةً؟»"
+  #     msa: "أعد صياغة هذه الجملة: «ماذا تفعل في المساء عادةً؟»"
+  #     en: "Rewrite this sentence: «ماذا تفعل في المساء عادةً؟»"
+  #     fr: "Réécris cette phrase : «ماذا تفعل في المساء عادةً؟»"
+
+  # - id: rewrite_03
+  #   category: rewrite
+  #   watch: [ماعرفتش, فين, حطيت, شفتي]
+  #   expected: "ماعرفتش فين حطيت السوارت، شفتيهم؟"
+  #   text:
+  #     darija_ar: "عاود كتب هاد الجملة بالدارجة: «لا أعرف أين وضعت مفاتيحي، هل رأيتها؟»"
+  #     darija_arabizi: "3awed kteb had jomla b darija: «لا أعرف أين وضعت مفاتيحي، هل رأيتها؟»"
+  #     msa: "أعد صياغة هذه الجملة: «لا أعرف أين وضعت مفاتيحي، هل رأيتها؟»"
+  #     en: "Rewrite this sentence: «لا أعرف أين وضعت مفاتيحي، هل رأيتها؟»"
+  #     fr: "Réécris cette phrase : «لا أعرف أين وضعت مفاتيحي، هل رأيتها؟»"
+
+  # - id: rewrite_04
+  #   category: rewrite
+  #   watch: [بزاف, خاصك, تلبس]
+  #   expected: "البرد بزاف اليوم، خاصك تلبس كبوط"
+  #   text:
+  #     darija_ar: "عاود كتب هاد الجملة بالدارجة: «الجو بارد جدا اليوم، يجب أن تلبس معطفا»"
+  #     darija_arabizi: "3awed kteb had jomla b darija: «الجو بارد جدا اليوم، يجب أن تلبس معطفا»"
+  #     msa: "أعد صياغة هذه الجملة: «الجو بارد جدا اليوم، يجب أن تلبس معطفا»"
+  #     en: "Rewrite this sentence: «الجو بارد جدا اليوم، يجب أن تلبس معطفا»"
+  #     fr: "Réécris cette phrase : «الجو بارد جدا اليوم، يجب أن تلبس معطفا»"
+
+  # - id: rewrite_05
+  #   category: rewrite
+  #   watch: [غادي, نعيط, ملي, نسالي]
+  #   expected: "غادي نعيط ليك غدا ملي نسالي الخدمة"
+  #   text:
+  #     darija_ar: "عاود كتب هاد الجملة بالدارجة: «سأتصل بك غدا عندما أنتهي من العمل»"
+  #     darija_arabizi: "3awed kteb had jomla b darija: «سأتصل بك غدا عندما أنتهي من العمل»"
+  #     msa: "أعد صياغة هذه الجملة: «سأتصل بك غدا عندما أنتهي من العمل»"
+  #     en: "Rewrite this sentence: «سأتصل بك غدا عندما أنتهي من العمل»"
+  #     fr: "Réécris cette phrase : «سأتصل بك غدا عندما أنتهي من العمل»"
