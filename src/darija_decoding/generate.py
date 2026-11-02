@@ -1,8 +1,9 @@
-"""Generate answers for a prompt set with one model (step 1b).
+"""Generate answers for a prompt set with one model (steps 1b and 1c).
 
 Each answer is appended to outputs/generations/<model>__<prompt set>.jsonl
-as soon as it is generated. Re-running the same command skips answers that
-are already saved, so an interrupted run picks up where it stopped.
+as soon as it is generated, with every generated token and its top-k
+alternatives. Re-running the same command skips answers that are already
+saved, so an interrupted run picks up where it stopped.
 
 Usage:
     python -m darija_decoding.generate --model gemma4-12b --dry-run
@@ -63,6 +64,42 @@ def clean_answer(raw: str, tokenizer) -> str:
     return text.strip()
 
 
+def token_details(logits: torch.Tensor, new_ids: torch.Tensor, tokenizer, k: int) -> list[dict]:
+    """Per generated token: its probability, rank, the step's entropy and the top-k alternatives.
+
+    `logits` are the raw model outputs (steps x vocab), before temperature or
+    top_p, so the numbers mean the same thing for greedy and sampled runs.
+    """
+    logprobs = torch.log_softmax(logits.float(), dim=-1)
+    probs = logprobs.exp()
+    chosen = probs.gather(1, new_ids[:, None]).squeeze(1)
+    ranks = (probs > chosen[:, None]).sum(dim=-1) + 1
+    entropy = -(probs * logprobs).nansum(dim=-1)
+    top_probs, top_ids = probs.topk(k, dim=-1)
+
+    def texts(ids: list[int]) -> list[str]:
+        return tokenizer.batch_decode([[i] for i in ids])
+
+    chosen_ids = new_ids.tolist()
+    chosen_texts = texts(chosen_ids)
+    details = []
+    for step, token_id in enumerate(chosen_ids):
+        alt_ids = top_ids[step].tolist()
+        details.append(
+            {
+                "id": token_id,
+                "text": chosen_texts[step],
+                "prob": round(chosen[step].item(), 5),
+                "rank": ranks[step].item(),
+                "entropy": round(entropy[step].item(), 4),
+                "top": [
+                    [i, t, round(p, 5)] for i, t, p in zip(alt_ids, texts(alt_ids), top_probs[step].tolist())
+                ],
+            }
+        )
+    return details
+
+
 def generate_one(processor, model, prompt: Prompt, gen_cfg: dict, setting: dict) -> dict:
     tokenizer = getattr(processor, "tokenizer", processor)
 
@@ -90,11 +127,14 @@ def generate_one(processor, model, prompt: Prompt, gen_cfg: dict, setting: dict)
             **inputs,
             max_new_tokens=gen_cfg["max_new_tokens"],
             pad_token_id=tokenizer.pad_token_id or tokenizer.eos_token_id,
+            return_dict_in_generate=True,
+            output_logits=True,  # raw logits, before temperature/top_p
             **setting,
         )
     seconds = time.perf_counter() - start
 
-    new_ids = output[0, input_len:]
+    new_ids = output.sequences[0, input_len:]
+    logits = torch.stack(output.logits, dim=1)[0]
     raw = tokenizer.decode(new_ids, skip_special_tokens=False)
     return {
         "chat_input": chat,
@@ -103,10 +143,14 @@ def generate_one(processor, model, prompt: Prompt, gen_cfg: dict, setting: dict)
         "n_new_tokens": len(new_ids),
         "hit_max_tokens": len(new_ids) >= gen_cfg["max_new_tokens"],
         "seconds": round(seconds, 2),
+        # Every generated token, including any thinking-block tokens at the start.
+        "tokens": token_details(logits, new_ids, tokenizer, gen_cfg["top_k_logged"]),
     }
 
 
-def saved_keys(path: Path) -> set[tuple[str, str, str]]:
+def saved_keys(path: Path) -> set[tuple[str, str, str, str]]:
+    """Answers already in the output file. Includes the prompt text hash, so
+    an answer to an older wording of a prompt doesn't count as done."""
     if not path.exists():
         return set()
     keys = set()
@@ -114,7 +158,7 @@ def saved_keys(path: Path) -> set[tuple[str, str, str]]:
         for line in f:
             if line.strip():
                 r = json.loads(line)
-                keys.add((r["prompt_id"], r["version"], r["setting"]))
+                keys.add((r["prompt_id"], r["version"], r["setting"], r.get("prompt_hash")))
     return keys
 
 
@@ -168,7 +212,7 @@ def main() -> None:
 
     out_path = args.out_dir / f"{args.model}__{args.prompts.stem}.jsonl"
     done = saved_keys(out_path)
-    todo = [(p, name) for p, name in jobs if (p.prompt_id, p.version, name) not in done]
+    todo = [(p, name) for p, name in jobs if (p.prompt_id, p.version, name, p.text_hash) not in done]
     print(f"{len(jobs)} generations planned, {len(jobs) - len(todo)} already saved, {len(todo)} to run")
 
     if args.dry_run:
@@ -193,6 +237,7 @@ def main() -> None:
                 "version": prompt.version,
                 "setting": name,
                 "prompt": prompt.text,
+                "prompt_hash": prompt.text_hash,
                 **result,
             }
             out.write(json.dumps(record, ensure_ascii=False) + "\n")
