@@ -154,90 +154,86 @@ prompts:
       en: "Tell me a story about someone who got lost in the old medina of Fes"
       fr: "Raconte-moi l'histoire de quelqu'un qui s'est perdu dans la médina de Fès"
 
-  # - id: story_03
-  #   category: story
-  #   watch: [سمح ليا, تعطلت, ماشي بالقصد]
-  #   text:
-  #     darija_ar: "كتب ليا ميساج نعتذر فيه لخويا حيت تعطلت عليه"
-  #     darija_arabizi: "kteb liya message n3tadr fih l khoya 7it t3ttelt 3lih"
-  #     msa: "اكتب لي رسالة أعتذر فيها لأخي لأنني تأخرت عليه"
-  #     en: "Write me a message apologizing to my brother because I was late"
-  #     fr: "Écris-moi un message pour m'excuser auprès de mon frère parce que je suis arrivé en retard"
+  - id: story_03
+    category: story
+    text:
+      darija_ar: "كتب ليا ميساج نعتذر فيه لخويا حيت تعطلت عليه"
+      darija_arabizi: "kteb liya message n3tadr fih lkhoya 7it t3telt 3lih"
+      msa: "اكتب لي رسالة أعتذر فيها لأخي لأنني تأخرت عليه"
+      en: "Write me a message apologizing to my brother because I was late"
+      fr: "Écris-moi un message pour m'excuser auprès de mon frère parce que je suis arrivé en retard"
 
-  # - id: story_04
-  #   category: story
-  #   watch: [بشحال, غالي, نقص]
-  #   text:
-  #     darija_ar: "دير ليا حوار بين بياع فالسوق وكليان كيتفاهمو على التمن"
-  #     darija_arabizi: "dir liya 7iwar bin biya3 f souk w klyan kayttfahmo 3la taman"
-  #     msa: "اكتب لي حوارا بين بائع في السوق وزبون يتفاوضان على الثمن"
-  #     en: "Write me a dialogue between a market seller and a customer bargaining over the price"
-  #     fr: "Écris-moi un dialogue entre un vendeur au souk et un client qui négocient le prix"
+  - id: story_04
+    category: story
+    text:
+      darija_ar: "دير ليا حوار بين بياع فسوق وكليان كيتفاهمو على تمن"
+      darija_arabizi: "dir liya 7iwar bin biya3 f souk w klyan kayttfahmo 3la taman"
+      msa: "اكتب لي حوارا بين بائع في السوق وزبون يتفاوضان على الثمن"
+      en: "Write me a dialogue between a market seller and a customer bargaining over the price"
+      fr: "Écris-moi un dialogue entre un vendeur au souk et un client qui négocient le prix"
 
-  # - id: story_05
-  #   category: story
-  #   watch: [العيد, الحولي, العائلة]
-  #   text:
-  #     darija_ar: "عاود ليا على نهار العيد فدار الجدة"
-  #     darija_arabizi: "3awed liya 3la nhar l3id f dar jedda"
-  #     msa: "احكِ لي عن يوم العيد في بيت الجدة"
-  #     en: "Tell me about Eid day at grandma's house"
-  #     fr: "Raconte-moi le jour de l'Aïd chez la grand-mère"
+  - id: story_05
+    category: story
+    text:
+      darija_ar: "عاود ليا على نهار العيد فدار جداك"
+      darija_arabizi: "3awed liya 3la nhar l3id f dar jedak"
+      msa: "احكِ لي عن يوم العيد في بيت الجدة"
+      en: "Tell me about Eid day at your grandma's house"
+      fr: "Raconte-moi le jour de l'Aïd chez ta grand-mère"
 
-  # # --------------------------------------------------------------- rewrite
-  # # The MSA sentence stays identical across versions; only the request
-  # # around it changes language.
-  # - id: rewrite_01
-  #   category: rewrite
-  #   watch: [بغيت, نمشي, دابا, شوية]
-  #   expected: "بغيت نمشي للسوق دابا نشري شوية د الخضرة"
-  #   text:
-  #     darija_ar: "عاود كتب هاد الجملة بالدارجة: «أريد أن أذهب إلى السوق الآن لأشتري بعض الخضر»"
-  #     darija_arabizi: "3awed kteb had jomla b darija: «أريد أن أذهب إلى السوق الآن لأشتري بعض الخضر»"
-  #     msa: "أعد صياغة هذه الجملة: «أريد أن أذهب إلى السوق الآن لأشتري بعض الخضر»"
-  #     en: "Rewrite this sentence: «أريد أن أذهب إلى السوق الآن لأشتري بعض الخضر»"
-  #     fr: "Réécris cette phrase : «أريد أن أذهب إلى السوق الآن لأشتري بعض الخضر»"
+  # --------------------------------------------------------------- rewrite
+  # The MSA sentence stays identical across versions; only the request
+  # around it changes language.
+  - id: rewrite_01
+    category: rewrite
+    expected: "بغيت نمشي لسوق دابا نشري شوية د الخضرة"
+    text:
+      darija_ar: "عاود كتب هاد لجملة بالدارجة: «أريد أن أذهب إلى السوق الآن لأشتري بعض الخضر»"
+      darija_arabizi: "3awed kteb had ljomla b darija: «أريد أن أذهب إلى السوق الآن لأشتري بعض الخضر»"
+      msa: "أعد صياغة هذه الجملة: «أريد أن أذهب إلى السوق الآن لأشتري بعض الخضر»"
+      en: "Rewrite this sentence: «أريد أن أذهب إلى السوق الآن لأشتري بعض الخضر»"
+      fr: "Réécris cette phrase : «أريد أن أذهب إلى السوق الآن لأشتري بعض الخضر»"
 
-  # - id: rewrite_02
-  #   category: rewrite
-  #   watch: [شنو, كدير, العشية]
-  #   expected: "شنو كدير فالعشية عادة؟"
-  #   text:
-  #     darija_ar: "عاود كتب هاد الجملة بالدارجة: «ماذا تفعل في المساء عادةً؟»"
-  #     darija_arabizi: "3awed kteb had jomla b darija: «ماذا تفعل في المساء عادةً؟»"
-  #     msa: "أعد صياغة هذه الجملة: «ماذا تفعل في المساء عادةً؟»"
-  #     en: "Rewrite this sentence: «ماذا تفعل في المساء عادةً؟»"
-  #     fr: "Réécris cette phrase : «ماذا تفعل في المساء عادةً؟»"
+  - id: rewrite_02
+    category: rewrite
+    watch: [شنو, كدير, العشية]
+    expected: "شنو كدير فالعشية عادة؟"
+    text:
+      darija_ar: "عاود كتب هاد الجملة بالدارجة: «ماذا تفعل في المساء عادةً؟»"
+      darija_arabizi: "3awed kteb had jomla b darija: «ماذا تفعل في المساء عادةً؟»"
+      msa: "أعد صياغة هذه الجملة: «ماذا تفعل في المساء عادةً؟»"
+      en: "Rewrite this sentence: «ماذا تفعل في المساء عادةً؟»"
+      fr: "Réécris cette phrase : «ماذا تفعل في المساء عادةً؟»"
 
-  # - id: rewrite_03
-  #   category: rewrite
-  #   watch: [ماعرفتش, فين, حطيت, شفتي]
-  #   expected: "ماعرفتش فين حطيت السوارت، شفتيهم؟"
-  #   text:
-  #     darija_ar: "عاود كتب هاد الجملة بالدارجة: «لا أعرف أين وضعت مفاتيحي، هل رأيتها؟»"
-  #     darija_arabizi: "3awed kteb had jomla b darija: «لا أعرف أين وضعت مفاتيحي، هل رأيتها؟»"
-  #     msa: "أعد صياغة هذه الجملة: «لا أعرف أين وضعت مفاتيحي، هل رأيتها؟»"
-  #     en: "Rewrite this sentence: «لا أعرف أين وضعت مفاتيحي، هل رأيتها؟»"
-  #     fr: "Réécris cette phrase : «لا أعرف أين وضعت مفاتيحي، هل رأيتها؟»"
+  - id: rewrite_03
+    category: rewrite
+    watch: [ماعرفتش, فين, حطيت, شفتي]
+    expected: "ماعرفتش فين حطيت السوارت، شفتيهم؟"
+    text:
+      darija_ar: "عاود كتب هاد الجملة بالدارجة: «لا أعرف أين وضعت مفاتيحي، هل رأيتها؟»"
+      darija_arabizi: "3awed kteb had jomla b darija: «لا أعرف أين وضعت مفاتيحي، هل رأيتها؟»"
+      msa: "أعد صياغة هذه الجملة: «لا أعرف أين وضعت مفاتيحي، هل رأيتها؟»"
+      en: "Rewrite this sentence: «لا أعرف أين وضعت مفاتيحي، هل رأيتها؟»"
+      fr: "Réécris cette phrase : «لا أعرف أين وضعت مفاتيحي، هل رأيتها؟»"
 
-  # - id: rewrite_04
-  #   category: rewrite
-  #   watch: [بزاف, خاصك, تلبس]
-  #   expected: "البرد بزاف اليوم، خاصك تلبس كبوط"
-  #   text:
-  #     darija_ar: "عاود كتب هاد الجملة بالدارجة: «الجو بارد جدا اليوم، يجب أن تلبس معطفا»"
-  #     darija_arabizi: "3awed kteb had jomla b darija: «الجو بارد جدا اليوم، يجب أن تلبس معطفا»"
-  #     msa: "أعد صياغة هذه الجملة: «الجو بارد جدا اليوم، يجب أن تلبس معطفا»"
-  #     en: "Rewrite this sentence: «الجو بارد جدا اليوم، يجب أن تلبس معطفا»"
-  #     fr: "Réécris cette phrase : «الجو بارد جدا اليوم، يجب أن تلبس معطفا»"
+  - id: rewrite_04
+    category: rewrite
+    watch: [بزاف, خاصك, تلبس]
+    expected: "البرد بزاف اليوم، خاصك تلبس كبوط"
+    text:
+      darija_ar: "عاود كتب هاد الجملة بالدارجة: «الجو بارد جدا اليوم، يجب أن تلبس معطفا»"
+      darija_arabizi: "3awed kteb had jomla b darija: «الجو بارد جدا اليوم، يجب أن تلبس معطفا»"
+      msa: "أعد صياغة هذه الجملة: «الجو بارد جدا اليوم، يجب أن تلبس معطفا»"
+      en: "Rewrite this sentence: «الجو بارد جدا اليوم، يجب أن تلبس معطفا»"
+      fr: "Réécris cette phrase : «الجو بارد جدا اليوم، يجب أن تلبس معطفا»"
 
-  # - id: rewrite_05
-  #   category: rewrite
-  #   watch: [غادي, نعيط, ملي, نسالي]
-  #   expected: "غادي نعيط ليك غدا ملي نسالي الخدمة"
-  #   text:
-  #     darija_ar: "عاود كتب هاد الجملة بالدارجة: «سأتصل بك غدا عندما أنتهي من العمل»"
-  #     darija_arabizi: "3awed kteb had jomla b darija: «سأتصل بك غدا عندما أنتهي من العمل»"
-  #     msa: "أعد صياغة هذه الجملة: «سأتصل بك غدا عندما أنتهي من العمل»"
-  #     en: "Rewrite this sentence: «سأتصل بك غدا عندما أنتهي من العمل»"
-  #     fr: "Réécris cette phrase : «سأتصل بك غدا عندما أنتهي من العمل»"
+  - id: rewrite_05
+    category: rewrite
+    watch: [غادي, نعيط, ملي, نسالي]
+    expected: "غادي نعيط ليك غدا ملي نسالي الخدمة"
+    text:
+      darija_ar: "عاود كتب هاد الجملة بالدارجة: «سأتصل بك غدا عندما أنتهي من العمل»"
+      darija_arabizi: "3awed kteb had jomla b darija: «سأتصل بك غدا عندما أنتهي من العمل»"
+      msa: "أعد صياغة هذه الجملة: «سأتصل بك غدا عندما أنتهي من العمل»"
+      en: "Rewrite this sentence: «سأتصل بك غدا عندما أنتهي من العمل»"
+      fr: "Réécris cette phrase : «سأتصل بك غدا عندما أنتهي من العمل»"
