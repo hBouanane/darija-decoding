@@ -30,7 +30,7 @@ prompts:
     text:
       darija_ar: "سلام، لاباس عليك؟ شنو ناوي دير نهار لحد؟"
       darija_arabizi: "salam, labas 3lik? chno nawi dir nhar l7ed?"
-      msa: "‏السلام عليكم كيف حالك؟ ماذا تنوي أن تفعل يوم الأحد؟"
+      msa: "السلام عليكم كيف حالك؟ ماذا تنوي أن تفعل يوم الأحد؟"
       en: "Hi, how are you? What are you planning to do on Sunday?"
       fr: "Salut, ça va ? Qu'est-ce que tu comptes faire dimanche ?"
 
