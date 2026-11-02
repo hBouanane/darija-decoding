@@ -354,7 +354,11 @@ function scriptOf(text) {
 
 function prep(r, i) {
   r._i = i;
-  r._key = [r.model, r.prompt_id, r.version, r.setting, r.prompt_hash].join("|");
+  // Which run this answer belongs to: baseline, or an intervention / answer prefix.
+  const iv = r.intervention;
+  r._run = [iv ? `${(iv.word_map || "").replace(/\.ya?ml$/, "")} b${iv.word_bias}` : "", r.answer_prefix ? "prefix" : ""]
+    .filter(Boolean).join(" + ") || "baseline";
+  r._key = [r.model, r.prompt_id, r.version, r.setting, r.prompt_hash].join("|") + (r._run === "baseline" ? "" : "|" + r._run);
   const toks = r.tokens || [];
   const sc = { arabic: 0, latin: 0, other: 0, punct: 0, special: 0, space: 0 };
   let sp = 0, se = 0, close = 0, below = 0, off = 0;
@@ -468,6 +472,7 @@ function renderList() {
     const nf = flagsFor(r).length;
     html += `<div class="item${r._i === state.cur ? " on" : ""}" data-i="${r._i}">
       <span class="lab">${esc(VERSION_LABEL[r.version] || r.version)} <span class="muted">· ${esc(r.setting)}</span></span>
+      ${r._run !== "baseline" ? `<span class="badge blue" title="Intervention run">${esc(r._run)}</span>` : ""}
       ${r._s.latinShare > 0.1 ? `<span class="badge blue" title="Share of word tokens in Latin script">Lat ${pct(r._s.latinShare)}</span>` : ""}
       ${r.hit_max_tokens ? `<span class="badge warn" title="Stopped at the token limit: answer is cut">max</span>` : ""}
       ${nf ? `<span class="badge flag">⚑${nf}</span>` : ""}
@@ -573,10 +578,12 @@ function renderTokensTab() {
     <div class="card">
       <div class="small muted">Prompt · ${esc(r.prompt_id)} · ${esc(r.category || "")}</div>
       <div class="prompt ar" dir="auto">${esc(r.prompt)}</div>
+      ${r.answer_prefix ? `<div class="small muted">Answer prefilled with <b class="ar" dir="auto">${esc(r.answer_prefix)}</b> (not in the token stream below)</div>` : ""}
       <div class="chips">
         <span class="chip"><b>${esc(r.model)}</b></span>
         <span class="chip">${esc(VERSION_LABEL[r.version] || r.version)}</span>
         <span class="chip">${esc(r.setting)}</span>
+        ${r._run !== "baseline" ? `<span class="chip" style="color:var(--accent)" title="Biased tokens show up as 'picked below #1' (colour by Rank picked)">run: <b>${esc(r._run)}</b></span>` : ""}
         <span class="chip"><b>${r.n_new_tokens}</b> tokens</span>
         <span class="chip">${r.seconds}s</span>
         ${r.hit_max_tokens ? `<span class="chip warn" title="Generation stopped at max_new_tokens">cut at token limit</span>` : ""}
@@ -830,7 +837,10 @@ function renderCompareTab() {
   if (!state.compareModel || !models.includes(state.compareModel)) state.compareModel = cur() ? cur().model : models[0];
   const recs = state.records.filter((r) => r.prompt_id === state.compareId && r.model === state.compareModel);
   const versions = [...new Set(recs.map((r) => r.version))].sort((a, b) => VERSION_ORDER.indexOf(a) - VERSION_ORDER.indexOf(b));
-  const settings = [...new Set(recs.map((r) => r.setting))].sort();
+  // One column per decoding setting and run, so baseline and interventions sit side by side.
+  const cols = [...new Set(recs.map((r) => r.setting + "|" + r._run))].sort((a, b) =>
+    a.split("|")[0].localeCompare(b.split("|")[0]) || (a.endsWith("|baseline") ? -1 : b.endsWith("|baseline") ? 1 : a.localeCompare(b)));
+  const settings = cols;
   const cell = (r) => !r ? `<div class="cell muted">—</div>` : `
     <div class="cell" data-open="${r._i}">
       <div class="meta">
@@ -849,11 +859,11 @@ function renderCompareTab() {
       <span class="muted small">Same request, every version and decoding setting side by side. Click an answer to inspect its tokens.</span>
     </div>
     <div class="grid" style="grid-template-columns:130px repeat(${settings.length}, 1fr)">
-      <div></div>${settings.map((s) => `<div class="colh">${esc(s)}</div>`).join("")}
+      <div></div>${settings.map((s) => `<div class="colh">${esc(s.replace("|", " · "))}</div>`).join("")}
       ${versions.map((v) => {
         const any = recs.find((r) => r.version === v);
         return `<div class="rowh">${esc(VERSION_LABEL[v] || v)}<div class="small muted ar" dir="auto" style="font-weight:400;margin-top:4px">${esc(any.prompt)}</div></div>` +
-          settings.map((s) => cell(recs.find((r) => r.version === v && r.setting === s))).join("");
+          settings.map((s) => cell(recs.find((r) => r.version === v && r.setting + "|" + r._run === s))).join("");
       }).join("")}
     </div>`;
 }
@@ -878,17 +888,18 @@ function aggregate(recs) {
 function renderOverviewTab() {
   const groups = new Map();
   for (const r of state.records) {
-    const k = `${r.model}|${r.version}|${r.setting}`;
+    const k = `${r.model}|${r.version}|${r.setting}|${r._run}`;
     if (!groups.has(k)) groups.set(k, []);
     groups.get(k).push(r);
   }
   const keys = [...groups.keys()].sort((a, b) => {
-    const [ma, va, sa] = a.split("|"), [mb, vb, sb] = b.split("|");
-    return ma.localeCompare(mb) || VERSION_ORDER.indexOf(va) - VERSION_ORDER.indexOf(vb) || sa.localeCompare(sb);
+    const [ma, va, sa, ra] = a.split("|"), [mb, vb, sb, rb] = b.split("|");
+    return ma.localeCompare(mb) || VERSION_ORDER.indexOf(va) - VERSION_ORDER.indexOf(vb) || sa.localeCompare(sb) ||
+      (ra === "baseline" ? -1 : rb === "baseline" ? 1 : ra.localeCompare(rb));
   });
   const rows = keys.map((k) => {
-    const [m, v, s] = k.split("|"), a = aggregate(groups.get(k));
-    return `<tr><td>${esc(VERSION_LABEL[v] || v)}${new Set(state.records.map((r) => r.model)).size > 1 ? ` <span class="muted small">${esc(m)}</span>` : ""}</td><td>${esc(s)}</td>
+    const [m, v, s, run] = k.split("|"), a = aggregate(groups.get(k));
+    return `<tr><td>${esc(VERSION_LABEL[v] || v)}${new Set(state.records.map((r) => r.model)).size > 1 ? ` <span class="muted small">${esc(m)}</span>` : ""}</td><td>${esc(s)}${run !== "baseline" ? ` <span class="badge blue">${esc(run)}</span>` : ""}</td>
       <td>${a.n}</td><td>${a.meanTok.toFixed(0)}</td><td class="${a.cut > 0.3 ? "hi" : ""}">${pct(a.cut)}</td>
       <td>${a.meanProb.toFixed(3)}</td><td>${a.meanEnt.toFixed(2)}</td><td>${pct(a.close, 1)}</td>
       <td>${s === "greedy" ? '<span class="muted">—</span>' : pct(a.below, 1)}</td><td class="${a.latin > 0.1 ? "hi" : ""}">${pct(a.latin, 1)}</td><td>${a.flags}</td></tr>`;

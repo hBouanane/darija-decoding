@@ -1,0 +1,56 @@
+# MSA words and the Darija word a native speaker would use instead.
+# Used by the word-map intervention (generate.py --word-map).
+#
+# DRAFT: first list written by Claude from the MSA words seen in the
+# exploration answers. Needs review by a native speaker: fix, add, delete.
+#
+# Each entry: the MSA word, and one or more Darija replacements.
+# Variants with a leading و ("and") are added automatically.
+
+pairs:
+  # pronouns / demonstratives
+  - {msa: هذا, darija: [هاد]}
+  - {msa: هذه, darija: [هادي]}
+  - {msa: ذلك, darija: [داك]}
+  - {msa: أنت, darija: [نتا]}
+  - {msa: الذي, darija: [اللي]}
+  - {msa: التي, darija: [اللي]}
+  - {msa: الذين, darija: [اللي]}
+
+  # question words
+  - {msa: ماذا, darija: [شنو]}
+  - {msa: لماذا, darija: [علاش]}
+  - {msa: كيف, darija: [كيفاش]}
+  - {msa: أين, darija: [فين]}
+
+  # connectors
+  - {msa: إذا, darija: [إلا]}
+  - {msa: عندما, darija: [ملي]}
+  - {msa: لأن, darija: [حيت]}
+  - {msa: أيضا, darija: [حتى]}
+  - {msa: فقط, darija: [غير]}
+  - {msa: ربما, darija: [يمكن]}
+  - {msa: مثل, darija: [بحال]}
+
+  # quantity / degree
+  - {msa: جدا, darija: [بزاف]}
+  - {msa: جداً, darija: [بزاف]}
+  - {msa: كثيرا, darija: [بزاف]}
+  - {msa: قليلا, darija: [شوية]}
+  - {msa: بعض, darija: [شي]}
+
+  # time
+  - {msa: الآن, darija: [دابا]}
+  - {msa: دائما, darija: [ديما]}
+
+  # verbs / other
+  - {msa: يجب, darija: [خاص]}
+  - {msa: يوجد, darija: [كاين]}
+  - {msa: ليس, darija: [ماشي]}
+  - {msa: أريد, darija: [بغيت]}
+  - {msa: تريد, darija: [بغيتي]}
+  - {msa: تستطيع, darija: [تقدر]}
+  - {msa: يمكنك, darija: [تقدر]}
+  - {msa: جيد, darija: [مزيان]}
+  - {msa: شيء, darija: [حاجة]}
+  - {msa: حسنا, darija: [واخا]}
