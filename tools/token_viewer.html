@@ -1,0 +1,1038 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Token Viewer</title>
+<!--
+  Token viewer for outputs/generations/*.jsonl (step 1d).
+  Open this file in a browser and load a .jsonl (button or drag & drop),
+  or serve the repo and open tools/token_viewer.html?data=<path to jsonl>.
+  Flags you add are kept in this browser and exported as JSONL for annotations/.
+-->
+<style>
+:root {
+  --bg: #f6f5f2; --panel: #ffffff; --panel-2: #fafaf8; --ink: #1c1c1a; --muted: #6d6c66;
+  --line: #e2e0da; --accent: #2b62d6; --accent-soft: #e7eefc; --warn: #b45309; --warn-soft: #fef3c7;
+  --flag: #dc2626; --flag-soft: #fee2e2; --ok: #15803d; --sel: #fde047; --focus: #2b62d6;
+  --heat-prob: 220, 38, 38; --heat-ent: 234, 88, 12; --heat-margin: 147, 51, 234; --heat-rank: 37, 99, 235;
+  --sc-latin: 37, 99, 235; --sc-punct: 140, 140, 140; --sc-other: 202, 138, 4; --sc-special: 110, 110, 110; --sc-arabic: 21, 128, 61;
+  --bar: #cdd9f5;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161615; --panel: #1f1f1d; --panel-2: #252523; --ink: #ecebe6; --muted: #a09f98;
+    --line: #353531; --accent: #7aa2f7; --accent-soft: #24304a; --warn: #f59e0b; --warn-soft: #3b2f12;
+    --flag: #f87171; --flag-soft: #3f1d1d; --ok: #4ade80; --sel: #a16207; --focus: #7aa2f7;
+    --heat-prob: 248, 113, 113; --heat-ent: 251, 146, 60; --heat-margin: 192, 132, 252; --heat-rank: 96, 165, 250;
+    --sc-latin: 96, 165, 250; --sc-punct: 160, 160, 160; --sc-other: 250, 204, 21; --sc-special: 150, 150, 150; --sc-arabic: 74, 222, 128;
+    --bar: #2f3f63;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #161615; --panel: #1f1f1d; --panel-2: #252523; --ink: #ecebe6; --muted: #a09f98;
+  --line: #353531; --accent: #7aa2f7; --accent-soft: #24304a; --warn: #f59e0b; --warn-soft: #3b2f12;
+  --flag: #f87171; --flag-soft: #3f1d1d; --ok: #4ade80; --sel: #a16207; --focus: #7aa2f7;
+  --heat-prob: 248, 113, 113; --heat-ent: 251, 146, 60; --heat-margin: 192, 132, 252; --heat-rank: 96, 165, 250;
+  --sc-latin: 96, 165, 250; --sc-punct: 160, 160, 160; --sc-other: 250, 204, 21; --sc-special: 150, 150, 150; --sc-arabic: 74, 222, 128;
+  --bar: #2f3f63;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--bg); color: var(--ink);
+  font: 14px/1.45 "Segoe UI", system-ui, -apple-system, "Noto Sans", "Noto Sans Arabic", Tahoma, sans-serif;
+  display: flex; flex-direction: column;
+}
+button, select, input, textarea { font: inherit; color: inherit; }
+button {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; cursor: pointer;
+}
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+select, input[type="text"], input[type="search"], textarea {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px;
+}
+textarea { width: 100%; resize: vertical; min-height: 34px; }
+.muted { color: var(--muted); }
+.small { font-size: 12px; }
+.ar { font-family: "Segoe UI", "Noto Naskh Arabic", "Noto Sans Arabic", Tahoma, sans-serif; }
+kbd { border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; font-size: 11px; background: var(--panel-2); }
+
+/* ---------- header ---------- */
+header {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 8px 14px; background: var(--panel); border-bottom: 1px solid var(--line);
+}
+header h1 { font-size: 15px; margin: 0 8px 0 0; font-weight: 600; }
+header .file { font-size: 12px; color: var(--muted); max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+header .spacer { flex: 1; }
+.tabs { display: flex; gap: 2px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 2px; }
+.tabs button { border: 0; background: transparent; padding: 3px 12px; border-radius: 6px; }
+.tabs button.on { background: var(--panel); box-shadow: 0 0 0 1px var(--line); font-weight: 600; }
+
+/* ---------- layout ---------- */
+main { flex: 1; display: flex; min-height: 0; }
+#sidebar {
+  width: 270px; flex-shrink: 0; border-right: 1px solid var(--line); background: var(--panel);
+  display: flex; flex-direction: column; min-height: 0;
+}
+#filters { padding: 10px; display: grid; gap: 6px; border-bottom: 1px solid var(--line); }
+#filters .row { display: flex; gap: 6px; }
+#filters .row > * { flex: 1; min-width: 0; }
+#list { overflow: auto; flex: 1; padding: 4px 0 20px; }
+.group-h {
+  position: sticky; top: 0; background: var(--panel-2); padding: 5px 12px; font-size: 12px; font-weight: 600;
+  border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); display: flex; justify-content: space-between;
+}
+.item {
+  padding: 5px 12px 5px 16px; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 13px;
+  border-left: 3px solid transparent;
+}
+.item:hover { background: var(--panel-2); }
+.item.on { background: var(--accent-soft); border-left-color: var(--accent); }
+.item .lab { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.badge { font-size: 11px; padding: 0 5px; border-radius: 4px; background: var(--panel-2); border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.badge.warn { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
+.badge.flag { background: var(--flag-soft); color: var(--flag); border-color: transparent; }
+.badge.blue { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+
+#center { flex: 1; min-width: 0; overflow: auto; padding: 16px 20px 40px; }
+#detail {
+  width: 400px; flex-shrink: 0; border-left: 1px solid var(--line); background: var(--panel);
+  overflow: auto; padding: 14px 16px 40px;
+}
+@media (max-width: 1150px) {
+  main { flex-direction: column; overflow: auto; }
+  #sidebar { width: auto; max-height: 260px; border-right: 0; border-bottom: 1px solid var(--line); }
+  #detail { width: auto; border-left: 0; border-top: 1px solid var(--line); }
+  #center { overflow: visible; }
+}
+
+/* ---------- record header ---------- */
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+.prompt { font-size: 16px; white-space: pre-wrap; margin: 4px 0 8px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); }
+.chip b { font-weight: 600; }
+.chip.warn { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
+.scriptbar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; margin-top: 10px; background: var(--panel-2); }
+.scriptbar span { display: block; height: 100%; }
+.legend-row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px; font-size: 12px; color: var(--muted); }
+.legend-row i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 10px; }
+.toolbar label { display: flex; gap: 6px; align-items: center; font-size: 13px; }
+.legend { font-size: 12px; color: var(--muted); }
+.grad { display: inline-block; width: 90px; height: 10px; border-radius: 3px; vertical-align: -1px; margin: 0 4px; }
+
+/* ---------- token stream ---------- */
+#stream {
+  font-size: 21px; line-height: 2.15; white-space: pre-wrap; word-break: break-word;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px;
+}
+#stream .tok {
+  border-radius: 3px; cursor: pointer; padding: 3px 0; box-shadow: inset 0 0 0 1px rgba(127, 127, 127, 0.22);
+}
+#stream.no-borders .tok { box-shadow: none; }
+#stream .tok:hover { box-shadow: inset 0 0 0 1px var(--focus); }
+#stream .tok.sel { outline: 2px solid var(--sel); outline-offset: 0; }
+#stream .tok.focus { box-shadow: inset 0 0 0 2px var(--focus); }
+#stream .tok.flagged { text-decoration: underline wavy var(--flag); text-underline-offset: 6px; text-decoration-thickness: 1px; }
+#stream .tok.special { color: var(--muted); font-size: 14px; }
+#stream sup { font-size: 10px; color: var(--accent); font-weight: 700; margin: 0 1px; }
+.plain { font-size: 18px; line-height: 1.9; white-space: pre-wrap; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+pre.plain { font: 13px/1.5 ui-monospace, "Cascadia Code", Consolas, monospace; overflow: auto; }
+
+/* ---------- detail panel ---------- */
+#detail h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 16px 0 6px; font-weight: 600; }
+#detail h2:first-child { margin-top: 0; }
+.bigtok {
+  font-size: 30px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2);
+  display: inline-block; min-width: 50px; text-align: center; white-space: pre;
+}
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 10px; }
+.stat { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; }
+.stat .k { font-size: 11px; color: var(--muted); }
+.stat .v { font-size: 15px; font-weight: 600; }
+.ctx { font-size: 17px; line-height: 1.8; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; white-space: pre-wrap; }
+.ctx mark { background: var(--sel); color: inherit; border-radius: 3px; padding: 0 1px; }
+.ctx .after { color: var(--muted); }
+table.alts { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.alts th { text-align: left; font-weight: 600; color: var(--muted); font-size: 11px; padding: 4px; border-bottom: 1px solid var(--line); }
+table.alts td { padding: 4px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+table.alts tr.chosen td { background: var(--accent-soft); }
+table.alts .t { font-size: 17px; white-space: pre; }
+table.alts .ctxcell { font-size: 15px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
+table.alts .ctxcell b { color: var(--ink); font-weight: 600; }
+.pbar { position: relative; height: 16px; background: var(--panel-2); border-radius: 3px; min-width: 70px; }
+.pbar span { position: absolute; inset: 0 auto 0 0; background: var(--bar); border-radius: 3px; }
+.pbar em { position: relative; font-style: normal; font-size: 11px; padding-left: 4px; line-height: 16px; }
+.tag { font-size: 10px; padding: 0 4px; border-radius: 3px; border: 1px solid var(--line); color: var(--muted); }
+.tag.latin { color: rgb(var(--sc-latin)); border-color: rgba(var(--sc-latin), .4); }
+.tag.arabic { color: rgb(var(--sc-arabic)); border-color: rgba(var(--sc-arabic), .4); }
+.tag.other { color: rgb(var(--sc-other)); border-color: rgba(var(--sc-other), .4); }
+.note { font-size: 12px; padding: 6px 8px; border-radius: 6px; background: var(--warn-soft); color: var(--warn); margin-top: 8px; }
+.form { display: grid; gap: 6px; }
+.form .row { display: flex; gap: 6px; }
+.form .row > * { flex: 1; min-width: 0; }
+.flag-item { border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; margin-bottom: 6px; cursor: pointer; background: var(--panel-2); }
+.flag-item:hover { border-color: var(--flag); }
+.flag-item .top { display: flex; justify-content: space-between; gap: 6px; align-items: baseline; }
+.flag-item .txt { font-size: 16px; }
+.flag-item .x { border: 0; background: transparent; color: var(--muted); padding: 0 4px; }
+.hint { color: var(--muted); font-size: 13px; }
+.hint p { margin: 6px 0; }
+
+/* ---------- overview / compare ---------- */
+table.ov { border-collapse: collapse; width: 100%; font-size: 13px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+table.ov th, table.ov td { padding: 6px 10px; border-bottom: 1px solid var(--line); text-align: right; }
+table.ov th:first-child, table.ov td:first-child, table.ov th:nth-child(2), table.ov td:nth-child(2) { text-align: left; }
+table.ov th { background: var(--panel-2); font-weight: 600; font-size: 12px; }
+table.ov td.hi { color: var(--warn); font-weight: 600; }
+.grid { display: grid; grid-template-columns: 130px 1fr 1fr; gap: 8px; }
+.grid .rowh { font-weight: 600; font-size: 13px; padding-top: 8px; }
+.grid .colh { font-weight: 600; font-size: 12px; color: var(--muted); }
+.cell { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; cursor: pointer; max-height: 300px; overflow: auto; }
+.cell:hover { border-color: var(--accent); }
+.cell .txt { white-space: pre-wrap; font-size: 15px; line-height: 1.7; }
+.cell .meta { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+.res { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-bottom: 6px; cursor: pointer; }
+.res:hover { border-color: var(--accent); }
+.res .snip { font-size: 16px; white-space: pre-wrap; }
+.res mark { background: var(--sel); color: inherit; border-radius: 3px; }
+.empty { max-width: 560px; margin: 60px auto; text-align: center; color: var(--muted); }
+.empty h2 { color: var(--ink); }
+#drop {
+  position: fixed; inset: 0; background: rgba(43, 98, 214, .12); border: 3px dashed var(--accent);
+  display: none; align-items: center; justify-content: center; font-size: 22px; z-index: 10; pointer-events: none;
+}
+body.dragging #drop { display: flex; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Token Viewer</h1>
+  <div class="tabs" id="tabs">
+    <button data-tab="tokens" class="on">Tokens</button>
+    <button data-tab="compare">Compare</button>
+    <button data-tab="overview">Overview</button>
+  </div>
+  <span class="file" id="fileName">no file loaded</span>
+  <span class="spacer"></span>
+  <button class="primary" id="loadBtn">Load .jsonl</button>
+  <input type="file" id="fileInput" accept=".jsonl,.json,.txt" hidden>
+  <button id="exportBtn" title="Download your flags as JSONL (save it under annotations/)">Export flags (0)</button>
+  <button id="importBtn" title="Load a previously exported flags file">Import flags</button>
+  <input type="file" id="importInput" accept=".jsonl,.json" hidden>
+  <button id="themeBtn" title="Switch light/dark">◐</button>
+</header>
+<main>
+  <aside id="sidebar">
+    <div id="filters">
+      <input type="search" id="q" placeholder="Search prompt or answer…" dir="auto">
+      <div class="row">
+        <select id="fVersion"><option value="">All versions</option></select>
+        <select id="fSetting"><option value="">All settings</option></select>
+      </div>
+      <div class="row">
+        <select id="fCategory"><option value="">All categories</option></select>
+        <select id="fModel"><option value="">All models</option></select>
+      </div>
+      <div class="row small">
+        <label><input type="checkbox" id="fHit"> hit max tokens</label>
+        <label><input type="checkbox" id="fFlag"> has flags</label>
+      </div>
+      <div class="small muted" id="count"></div>
+    </div>
+    <div id="list"></div>
+  </aside>
+  <section id="center"></section>
+  <aside id="detail"></aside>
+</main>
+<div id="drop">Drop the .jsonl file</div>
+
+<script>
+"use strict";
+
+// ---------------------------------------------------------------- constants
+const CLOSE_GAP = 0.2; // a "close call": top-1 beats top-2 by less than this
+const VERSION_ORDER = ["darija_ar", "darija_ar_inst", "darija_arabizi", "darija_arabizi_inst", "msa", "en", "fr"];
+const VERSION_LABEL = {
+  darija_ar: "Darija · Arabic script", darija_arabizi: "Darija · Arabizi",
+  darija_ar_inst: "Darija · Arabic + instr.", darija_arabizi_inst: "Darija · Arabizi + instr.",
+  msa: "MSA + instr.", en: "English + instr.", fr: "French + instr.",
+};
+const FLAG_TYPES = [
+  ["msa", "MSA word / form"],
+  ["french", "French word"],
+  ["english", "English word"],
+  ["spelling", "Spelling / convention"],
+  ["phrasing", "Unnatural phrasing"],
+  ["meaning", "Wrong meaning"],
+  ["other", "Other"],
+];
+const MODES = {
+  prob: { label: "Probability", heat: "--heat-prob",
+    legend: "Darker = the model was less sure of the token it picked (low probability)." },
+  margin: { label: "Close calls", heat: "--heat-margin",
+    legend: `Darker = top-1 barely beat top-2. Gap under ${CLOSE_GAP} counts as a close call: where a nudge could flip the word.` },
+  entropy: { label: "Entropy", heat: "--heat-ent",
+    legend: "Darker = probability spread over many options (the model was undecided). Scale capped at 3 nats." },
+  rank: { label: "Rank picked", heat: "--heat-rank",
+    legend: "Highlighted = sampling picked a token that was NOT the model's #1 (number = its rank, not counting blocked special tokens). Always empty for greedy." },
+  blocked: { label: "Blocked #1", heat: "--heat-prob",
+    legend: "Highlighted = the model's raw #1 was a special token generation never outputs (e.g. <image|>), so it wrote the runner-up. Probabilities at these steps are distorted." },
+  script: { label: "Script", heat: null,
+    legend: "Colours tokens by script, to spot English/French or Latin drift inside Arabic text." },
+  none: { label: "None", heat: null, legend: "No colouring." },
+};
+const SCRIPT_COLOR = { arabic: null, latin: "--sc-latin", other: "--sc-other", punct: "--sc-punct", special: "--sc-special", space: null };
+const ANN_KEY = "darija-token-viewer:flags:v1";
+const UI_KEY = "darija-token-viewer:ui:v1";
+
+const AR_CHAR = /[؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿]/;
+const LATIN_CHAR = /[A-Za-zÀ-ɏ]/;
+const AR_JOIN_END = /[ؠ-يٮ-ۓۺ-ۿ][ً-ٰٟ]*$/;
+const AR_JOIN_START = /^[ً-ٰٟ]*[ؠ-يٮ-ۓۺ-ۿ]/;
+
+// ---------------------------------------------------------------- state
+const state = {
+  records: [], files: [], view: [], cur: -1, focus: -1, sel: null,
+  tab: "tokens", sub: "tokens", mode: "prob", ws: false, borders: true,
+  compareId: null, searchQ: "",
+  flags: loadFlags(),
+};
+Object.assign(state, loadUi());
+
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const pct = (x, d = 0) => (100 * x).toFixed(d) + "%";
+const fmtP = (p) => (p >= 0.995 ? "1.00" : p < 0.001 ? (p === 0 ? "0" : "<0.001") : p.toFixed(3));
+
+function loadFlags() { try { return JSON.parse(localStorage.getItem(ANN_KEY) || "[]"); } catch { return []; } }
+function saveFlags() { try { localStorage.setItem(ANN_KEY, JSON.stringify(state.flags)); } catch {} $("#exportBtn").textContent = `Export flags (${state.flags.length})`; }
+function loadUi() { try { return JSON.parse(localStorage.getItem(UI_KEY) || "{}"); } catch { return {}; } }
+function saveUi() { try { localStorage.setItem(UI_KEY, JSON.stringify({ mode: state.mode, ws: state.ws, borders: state.borders })); } catch {} }
+
+// ---------------------------------------------------------------- data prep
+function scriptOf(text) {
+  const s = text.trim();
+  if (!s) return "space";
+  if (/^<[|\w\/ .-]+>$/.test(s) || /^<\|.*\|?>$/.test(s)) return "special";
+  if (AR_CHAR.test(s)) return "arabic";
+  if (LATIN_CHAR.test(s)) return "latin";
+  if (/^[\p{P}\p{S}\p{N}\s]+$/u.test(s)) return "punct";
+  return "other";
+}
+
+function prep(r, i) {
+  r._i = i;
+  r._key = [r.model, r.prompt_id, r.version, r.setting, r.prompt_hash].join("|");
+  const toks = r.tokens || [];
+  const sc = { arabic: 0, latin: 0, other: 0, punct: 0, special: 0, space: 0 };
+  let sp = 0, se = 0, close = 0, below = 0, off = 0;
+  r._off = [];
+  let blocked = 0;
+  for (const t of toks) {
+    t._script = scriptOf(t.text);
+    // Special tokens the model ranks but generation never emits (e.g. <image|>).
+    // When one is #1, the picked token is the real winner; ignore it for gap/rank stats.
+    t._blocked = t.top.filter((a) => a[0] !== t.id && scriptOf(a[1]) === "special" && a[2] > t.prob);
+    const real = t.top.filter((a) => a[0] === t.id || scriptOf(a[1]) !== "special");
+    // Renormalize without the blocked tokens, so gaps compare with normal steps.
+    // Saved probs are rounded, so a blocked token can show as exactly 1.0: fall back
+    // to the visible real candidates' mass as a lower bound.
+    const realMass = real.reduce((s, a) => s + a[2], 0) + (real.some((a) => a[0] === t.id) ? 0 : t.prob);
+    t._mass = Math.max(1 - t._blocked.reduce((s, a) => s + a[2], 0), realMass, 1e-9);
+    t._pAdj = t.prob / t._mass;
+    t._gap = real.length > 1 ? (real[0][2] - real[1][2]) / t._mass : 1;
+    t._rankReal = t.rank - t._blocked.length;
+    sp += t._pAdj; se += t.entropy;
+    if (t._gap < CLOSE_GAP) close++;
+    if (t._rankReal > 1) below++;
+    if (t._blocked.length) blocked++;
+    sc[t._script]++;
+    r._off.push(off); off += t.text.length;
+  }
+  const n = toks.length || 1;
+  const words = sc.arabic + sc.latin + sc.other || 1;
+  r._joined = toks.map((t) => t.text).join("");
+  r._s = { n: toks.length, meanProb: sp / n, meanEnt: se / n, close, below, blocked, sc, latinShare: sc.latin / words };
+  r._dir = sc.arabic >= sc.latin ? "rtl" : "ltr";
+}
+
+function parseJsonl(text, name) {
+  const out = [];
+  const lines = text.split(/\r?\n/);
+  let bad = 0;
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    try { out.push(JSON.parse(line)); } catch { bad++; }
+  }
+  if (bad) console.warn(`${name}: skipped ${bad} unreadable line(s)`);
+  return out;
+}
+
+function addRecords(recs, name) {
+  const missingTokens = recs.filter((r) => !Array.isArray(r.tokens)).length;
+  for (const r of recs) {
+    if (!Array.isArray(r.tokens)) r.tokens = [];
+    prep(r, state.records.length);
+    state.records.push(r);
+  }
+  state.files.push(name);
+  $("#fileName").textContent = `${state.files.join(", ")} · ${state.records.length} answers`;
+  if (missingTokens) alert(`${missingTokens} answer(s) in ${name} have no token data (made before token logging). They show as text only.`);
+  fillFilterOptions();
+  applyFilters();
+  if (state.cur < 0 && state.view.length) openRecord(state.view[0]._i);
+  render();
+}
+
+// ---------------------------------------------------------------- filters & list
+function fillFilterOptions() {
+  const uniq = (k) => [...new Set(state.records.map((r) => r[k]))];
+  const fill = (id, vals, label, all) => {
+    const el = $(id), cur = el.value;
+    el.innerHTML = `<option value="">${all}</option>` + vals.map((v) => `<option value="${esc(v)}">${esc(label ? label(v) : v)}</option>`).join("");
+    el.value = vals.includes(cur) ? cur : "";
+  };
+  const versions = uniq("version").sort((a, b) => VERSION_ORDER.indexOf(a) - VERSION_ORDER.indexOf(b));
+  fill("#fVersion", versions, (v) => VERSION_LABEL[v] || v, "All versions");
+  fill("#fSetting", uniq("setting"), null, "All settings");
+  fill("#fCategory", uniq("category"), null, "All categories");
+  fill("#fModel", uniq("model"), null, "All models");
+}
+
+function flagsFor(r) { return state.flags.filter((f) => f.key === r._key); }
+
+function applyFilters() {
+  const q = $("#q").value.trim();
+  const v = $("#fVersion").value, s = $("#fSetting").value, c = $("#fCategory").value, m = $("#fModel").value;
+  const hit = $("#fHit").checked, fl = $("#fFlag").checked;
+  state.view = state.records.filter((r) =>
+    (!v || r.version === v) && (!s || r.setting === s) && (!c || r.category === c) && (!m || r.model === m) &&
+    (!hit || r.hit_max_tokens) && (!fl || flagsFor(r).length) &&
+    (!q || r.prompt.includes(q) || (r.answer || "").includes(q) || r.prompt_id.includes(q)));
+  state.view.sort((a, b) =>
+    a.model.localeCompare(b.model) || a.prompt_id.localeCompare(b.prompt_id) ||
+    VERSION_ORDER.indexOf(a.version) - VERSION_ORDER.indexOf(b.version) || a.setting.localeCompare(b.setting));
+  renderList();
+}
+
+function renderList() {
+  const multiModel = new Set(state.records.map((r) => r.model)).size > 1;
+  let html = "", group = null;
+  for (const r of state.view) {
+    const g = (multiModel ? r.model + " · " : "") + r.prompt_id;
+    if (g !== group) {
+      group = g;
+      html += `<div class="group-h"><span>${esc(g)}</span><span class="muted">${esc(r.category || "")}</span></div>`;
+    }
+    const nf = flagsFor(r).length;
+    html += `<div class="item${r._i === state.cur ? " on" : ""}" data-i="${r._i}">
+      <span class="lab">${esc(VERSION_LABEL[r.version] || r.version)} <span class="muted">· ${esc(r.setting)}</span></span>
+      ${r._s.latinShare > 0.1 ? `<span class="badge blue" title="Share of word tokens in Latin script">Lat ${pct(r._s.latinShare)}</span>` : ""}
+      ${r.hit_max_tokens ? `<span class="badge warn" title="Stopped at the token limit: answer is cut">max</span>` : ""}
+      ${nf ? `<span class="badge flag">⚑${nf}</span>` : ""}
+      <span class="badge" title="tokens">${r.n_new_tokens}</span>
+    </div>`;
+  }
+  $("#list").innerHTML = html || `<div class="hint" style="padding:12px">No answers match.</div>`;
+  $("#count").textContent = state.records.length ? `${state.view.length} of ${state.records.length} answers` : "";
+}
+
+// ---------------------------------------------------------------- navigation
+function cur() { return state.records[state.cur]; }
+
+function openRecord(i, focus = -1) {
+  state.cur = i;
+  state.focus = focus;
+  state.sel = focus >= 0 ? { a: focus, b: focus } : null;
+  document.querySelectorAll("#list .item").forEach((el) => el.classList.toggle("on", +el.dataset.i === i));
+  const el = document.querySelector(`#list .item[data-i="${i}"]`);
+  if (el) el.scrollIntoView({ block: "nearest" });
+}
+
+function stepRecord(d) {
+  if (!state.view.length) return;
+  const pos = state.view.findIndex((r) => r._i === state.cur);
+  const next = state.view[Math.max(0, Math.min(state.view.length - 1, pos + d))];
+  openRecord(next._i);
+  render();
+}
+
+function setFocus(i, extend = false) {
+  const r = cur();
+  if (!r || !r.tokens.length) return;
+  i = Math.max(0, Math.min(r.tokens.length - 1, i));
+  if (extend && state.sel) state.sel = { a: state.sel.a, b: i };
+  else state.sel = { a: i, b: i };
+  state.focus = i;
+  updateStreamMarks();
+  renderDetail();
+  const el = document.querySelector(`#stream .tok[data-i="${i}"]`);
+  if (el) el.scrollIntoView({ block: "nearest" });
+}
+
+function selRange() {
+  if (!state.sel) return null;
+  return [Math.min(state.sel.a, state.sel.b), Math.max(state.sel.a, state.sel.b)];
+}
+
+// ---------------------------------------------------------------- rendering: shared
+function render() {
+  document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === state.tab));
+  if (!state.records.length) { renderEmpty(); return; }
+  if (state.tab === "tokens") renderTokensTab();
+  else if (state.tab === "compare") renderCompareTab();
+  else renderOverviewTab();
+  renderDetail();
+}
+
+function renderEmpty() {
+  $("#center").innerHTML = `<div class="empty">
+    <h2>Load a generations file</h2>
+    <p>Click <b>Load .jsonl</b> or drop a file from <code>outputs/generations/</code> anywhere on this page.
+    You can load several files (e.g. two models) one after another.</p>
+    <p class="small">Each answer shows every generated token, coloured by how sure the model was.
+    Click a token to see the 10 tokens the model ranked highest at that step, and flag errors for your annotations.</p>
+  </div>`;
+  $("#detail").innerHTML = shortcutsHtml();
+}
+
+function visible(text) {
+  let s = text.replace(/\n/g, "⏎");
+  if (state.ws) s = s.replace(/ /g, "·").replace(/\t/g, "→");
+  return s;
+}
+function visibleAlways(text) { return text.replace(/\n/g, "⏎").replace(/ /g, "·").replace(/\t/g, "→") || "∅"; }
+
+function heat(t) {
+  const m = state.mode;
+  let a = 0, v = MODES[m].heat;
+  if (m === "prob") a = t._pAdj > 0.95 ? 0 : 1 - t._pAdj;
+  else if (m === "margin") a = Math.max(0, 1 - t._gap / 0.5);
+  else if (m === "entropy") a = Math.min(t.entropy / 3, 1);
+  else if (m === "rank") a = t._rankReal > 1 ? Math.min(0.4 + 0.15 * Math.log2(t._rankReal), 1) : 0;
+  else if (m === "blocked") a = t._blocked.length ? 1 : 0;
+  else if (m === "script") { v = SCRIPT_COLOR[t._script]; a = t._script === "punct" ? 0.25 : 0.55; }
+  if (!v || a <= 0.02) return "";
+  return `rgba(var(${v}), ${(a * 0.6).toFixed(3)})`;
+}
+
+// ---------------------------------------------------------------- tokens tab
+function renderTokensTab() {
+  const r = cur();
+  if (!r) { $("#center").innerHTML = `<div class="empty">Pick an answer on the left.</div>`; return; }
+  const s = r._s, sc = s.sc, words = sc.arabic + sc.latin + sc.other + sc.punct + sc.special || 1;
+  const scriptSeg = (k, col) => sc[k] ? `<span style="width:${(100 * sc[k]) / words}%;background:${col}" title="${k}: ${sc[k]}"></span>` : "";
+  const flags = flagsFor(r);
+  const m = MODES[state.mode];
+  const grad = m.heat ? `<span class="grad" style="background:linear-gradient(90deg, rgba(var(${m.heat}),0), rgba(var(${m.heat}),.6))"></span>` : "";
+
+  $("#center").innerHTML = `
+    <div class="card">
+      <div class="small muted">Prompt · ${esc(r.prompt_id)} · ${esc(r.category || "")}</div>
+      <div class="prompt ar" dir="auto">${esc(r.prompt)}</div>
+      <div class="chips">
+        <span class="chip"><b>${esc(r.model)}</b></span>
+        <span class="chip">${esc(VERSION_LABEL[r.version] || r.version)}</span>
+        <span class="chip">${esc(r.setting)}</span>
+        <span class="chip"><b>${r.n_new_tokens}</b> tokens</span>
+        <span class="chip">${r.seconds}s</span>
+        ${r.hit_max_tokens ? `<span class="chip warn" title="Generation stopped at max_new_tokens">cut at token limit</span>` : ""}
+        ${s.n ? `
+        <span class="chip" title="Average probability of the picked tokens">mean p <b>${s.meanProb.toFixed(2)}</b></span>
+        <span class="chip" title="Average entropy per step (nats)">mean entropy <b>${s.meanEnt.toFixed(2)}</b></span>
+        <span class="chip" title="Tokens where top-1 beat top-2 by less than ${CLOSE_GAP}">close calls <b>${s.close}</b> (${pct(s.close / s.n)})</span>
+        <span class="chip" title="Tokens picked below rank 1, not counting blocked special tokens (only happens with sampling)">picked below #1 <b>${s.below}</b></span>
+        ${s.blocked ? `<span class="chip warn" title="Steps where the model's raw #1 was a special token (e.g. <image|>) that generation blocks. Colour by 'Blocked #1' to see them.">blocked #1 <b>${s.blocked}</b></span>` : ""}
+        <span class="chip" title="Share of word tokens in Latin script">Latin <b>${pct(s.latinShare)}</b></span>` : ""}
+        ${flags.length ? `<span class="chip" style="color:var(--flag)">⚑ ${flags.length} flag(s)</span>` : ""}
+      </div>
+      ${s.n ? `<div class="scriptbar">${scriptSeg("arabic", "rgb(var(--sc-arabic))")}${scriptSeg("latin", "rgb(var(--sc-latin))")}${scriptSeg("other", "rgb(var(--sc-other))")}${scriptSeg("punct", "rgb(var(--sc-punct))")}${scriptSeg("special", "rgb(var(--sc-special))")}</div>
+      <div class="legend-row"><span><i style="background:rgb(var(--sc-arabic))"></i>Arabic ${sc.arabic}</span><span><i style="background:rgb(var(--sc-latin))"></i>Latin ${sc.latin}</span><span><i style="background:rgb(var(--sc-other))"></i>Other ${sc.other}</span><span><i style="background:rgb(var(--sc-punct))"></i>Punct./digits ${sc.punct}</span><span><i style="background:rgb(var(--sc-special))"></i>Special ${sc.special}</span></div>` : ""}
+    </div>
+
+    <div class="toolbar">
+      <div class="tabs" id="subtabs">
+        ${[["tokens", "Tokens"], ["answer", "Answer"], ["raw", "Raw output"], ["chat", "Model input"]]
+          .map(([k, l]) => `<button data-sub="${k}" class="${state.sub === k ? "on" : ""}">${l}</button>`).join("")}
+      </div>
+      ${state.sub === "tokens" ? `
+      <label>Colour by <select id="mode">${Object.entries(MODES).map(([k, v]) => `<option value="${k}" ${k === state.mode ? "selected" : ""}>${v.label}</option>`).join("")}</select></label>
+      <label><input type="checkbox" id="ws" ${state.ws ? "checked" : ""}> show spaces</label>
+      <label><input type="checkbox" id="borders" ${state.borders ? "checked" : ""}> token borders</label>` : ""}
+    </div>
+    ${state.sub === "tokens" ? `<div class="legend" style="margin-bottom:8px">${grad}${esc(m.legend)}</div>` : ""}
+    <div id="body"></div>`;
+
+  const body = $("#body");
+  if (state.sub === "tokens") {
+    if (!r.tokens.length) body.innerHTML = `<div class="plain ar" dir="auto">${esc(r.answer)}</div><p class="hint">No token data in this answer.</p>`;
+    else { body.innerHTML = `<div id="stream" class="ar"></div>`; renderStream(r); }
+  } else if (state.sub === "answer") {
+    body.innerHTML = `<div class="plain ar" dir="auto">${esc(r.answer)}</div>`;
+  } else if (state.sub === "raw") {
+    body.innerHTML = `<pre class="plain" dir="auto">${esc(r.raw_output)}</pre>`;
+  } else {
+    body.innerHTML = `<pre class="plain" dir="auto">${esc(r.chat_input || "(not saved)")}</pre>`;
+  }
+}
+
+function renderStream(r) {
+  const box = $("#stream");
+  box.dir = r._dir;
+  box.classList.toggle("no-borders", !state.borders);
+  const flagged = new Set();
+  for (const f of flagsFor(r)) for (let k = f.token_start; k <= f.token_end; k++) flagged.add(k);
+  const frag = document.createDocumentFragment();
+  const toks = r.tokens;
+  toks.forEach((t, i) => {
+    const sp = document.createElement("span");
+    sp.className = "tok" + (t._script === "special" ? " special" : "") + (flagged.has(i) ? " flagged" : "");
+    sp.dataset.i = i;
+    let txt = visible(t.text);
+    // Zero-width joiners keep Arabic letters connected across token borders.
+    if (!state.ws || !t.text.startsWith(" ")) {
+      if (i > 0 && AR_JOIN_START.test(t.text) && AR_JOIN_END.test(toks[i - 1].text)) txt = "‍" + txt;
+    }
+    if (i < toks.length - 1 && AR_JOIN_END.test(t.text) && AR_JOIN_START.test(toks[i + 1].text)) txt += "‍";
+    sp.textContent = txt;
+    const bg = heat(t);
+    if (bg) sp.style.background = bg;
+    sp.title = `#${i} · p=${fmtP(t.prob)} · rank ${t.rank} · H=${t.entropy.toFixed(2)} · gap ${t._gap.toFixed(2)}`;
+    if (state.mode === "rank" && t._rankReal > 1) {
+      const sup = document.createElement("sup");
+      sup.textContent = t._rankReal;
+      sp.appendChild(sup);
+    }
+    frag.appendChild(sp);
+    if (t.text.includes("\n")) frag.appendChild(document.createElement("br"));
+  });
+  box.replaceChildren(frag);
+  updateStreamMarks();
+}
+
+function updateStreamMarks() {
+  const rg = selRange();
+  document.querySelectorAll("#stream .tok").forEach((el) => {
+    const i = +el.dataset.i;
+    el.classList.toggle("sel", !!rg && i >= rg[0] && i <= rg[1]);
+    el.classList.toggle("focus", i === state.focus);
+  });
+}
+
+// ---------------------------------------------------------------- detail panel
+function shortcutsHtml() {
+  return `<div class="hint">
+    <h2>How to use</h2>
+    <p>Click a token to inspect it. <kbd>Shift</kbd>+click another token to select a span, then flag it.</p>
+    <p><kbd>←</kbd> <kbd>→</kbd> move between tokens (follows reading direction), <kbd>Shift</kbd>+arrows extend the selection.</p>
+    <p><kbd>[</kbd> <kbd>]</kbd> previous / next answer · <kbd>F</kbd> jump to the flag form · <kbd>Esc</kbd> clear.</p>
+    <h2>What the numbers mean</h2>
+    <p><b>p</b>: probability the model gave the token it output (raw, before temperature/top-p).</p>
+    <p><b>Rank</b>: position of that token in the model's ranking. Greedy is always 1; sampling can pick lower.</p>
+    <p><b>Gap</b>: p(#1) − p(#2). Small gap = close call, where the runner-up nearly won.</p>
+    <p><b>Entropy</b>: how spread out the choice was (0 = certain; higher = undecided).</p>
+  </div>`;
+}
+
+function contextHtml(r, i, before = 25, after = 10) {
+  const toks = r.tokens;
+  const pre = toks.slice(Math.max(0, i - before), i).map((t) => t.text).join("");
+  const post = toks.slice(i + 1, i + 1 + after).map((t) => t.text).join("");
+  return `<div class="ctx ar" dir="${r._dir}">${i - before > 0 ? "…" : ""}${esc(pre)}<mark>${esc(toks[i].text)}</mark><span class="after">${esc(post)}${i + after < toks.length - 1 ? "…" : ""}</span></div>`;
+}
+
+function renderDetail() {
+  const d = $("#detail");
+  const r = cur();
+  if (!r || state.tab !== "tokens") { d.innerHTML = shortcutsHtml(); return; }
+  const flags = flagsFor(r);
+  const flagsHtml = `
+    <h2>Flags on this answer (${flags.length})</h2>
+    ${flags.length ? flags.map((f) => `
+      <div class="flag-item" data-flag="${f.id}">
+        <div class="top"><span class="txt ar" dir="auto">${esc(f.text.trim() || "∅")}${f.correction ? ` <span class="muted">→</span> ${esc(f.correction)}` : ""}</span>
+          <button class="x" data-del="${f.id}" title="Delete flag">✕</button></div>
+        <div class="small muted">${esc((FLAG_TYPES.find((x) => x[0] === f.type) || [, f.type])[1])} · tokens ${f.token_start}–${f.token_end}
+          ${f.correction ? ` · ${f.correction_rank ? `correction starts with alt. <b>#${f.correction_rank}</b> (p=${fmtP(f.correction_prob)})` : "correction start not in top-10"}` : ""}</div>
+        ${f.note ? `<div class="small">${esc(f.note)}</div>` : ""}
+      </div>`).join("") : `<div class="hint">None yet.</div>`}`;
+
+  if (state.focus < 0 || !r.tokens.length) { d.innerHTML = shortcutsHtml() + flagsHtml; return; }
+
+  const i = state.focus, t = r.tokens[i];
+  const prefixTail = r.tokens.slice(Math.max(0, i - 4), i).map((x) => x.text).join("").slice(-14);
+  const inTop = t.top.some((a) => a[0] === t.id);
+  const altRows = t.top.map((a, k) => {
+    const [id, text, p] = a, chosen = id === t.id, sc = scriptOf(text);
+    return `<tr class="${chosen ? "chosen" : ""}">
+      <td class="muted">${k + 1}</td>
+      <td class="t ar" dir="auto">${esc(visibleAlways(text))}</td>
+      <td class="ctxcell ar" dir="${r._dir}" title="previous text + this token">${esc(prefixTail)}<b>${esc(text)}</b></td>
+      <td><div class="pbar"><span style="width:${Math.max(1, p * 100)}%"></span><em>${fmtP(p)}</em></div></td>
+      <td>${sc !== "arabic" ? `<span class="tag ${sc}">${sc}</span>` : ""}${t._blocked.includes(a) ? ` <span class="tag">blocked</span>` : ""}${chosen ? ` <span class="tag" style="color:var(--accent)">picked</span>` : ""}</td>
+      <td class="muted small">${id}</td>
+    </tr>`;
+  }).join("");
+  const rg = selRange();
+  const selText = rg ? r.tokens.slice(rg[0], rg[1] + 1).map((x) => x.text).join("") : "";
+
+  d.innerHTML = `
+    <h2>Token #${i} of ${r.tokens.length}</h2>
+    <div class="bigtok ar" dir="auto">${esc(visibleAlways(t.text))}</div>
+    <span class="tag ${t._script}" style="margin-left:6px">${t._script}</span>
+    <span class="muted small">id ${t.id}</span>
+    <div class="stats">
+      <div class="stat"><div class="k">Probability</div><div class="v">${t._blocked.length ? `${fmtP(t._pAdj)} <span class="small muted" title="raw, including the blocked token">(raw ${fmtP(t.prob)})</span>` : fmtP(t.prob)}</div></div>
+      <div class="stat"><div class="k">Rank</div><div class="v">${t._rankReal}${t._blocked.length ? ` <span class="small muted">(raw ${t.rank})</span>` : ""}</div></div>
+      <div class="stat"><div class="k">Gap to #2</div><div class="v">${t._gap.toFixed(3)}</div></div>
+      <div class="stat"><div class="k">Entropy</div><div class="v">${t.entropy.toFixed(2)}</div></div>
+      <div class="stat"><div class="k">Top-1 p</div><div class="v">${fmtP(t.top[0][2])}</div></div>
+      <div class="stat"><div class="k">Top-10 mass</div><div class="v">${pct(t.top.reduce((s, a) => s + a[2], 0))}</div></div>
+    </div>
+    ${t._blocked.length ? `<div class="note">The model's raw #1 was <b>${esc(t._blocked.map((a) => a[1]).join(", "))}</b> (p=${fmtP(t._blocked[0][2])}), a special token generation never outputs, so it wrote the runner-up. Probabilities and gap shown here are rescaled without it; the table keeps raw values.</div>` : ""}
+    ${t._rankReal > 1 ? (() => { const best = t.top.find((a) => !t._blocked.includes(a)); return `<div class="note">Sampling picked rank ${t._rankReal}. Greedy would have picked <b class="ar">${esc(visibleAlways(best[1]))}</b> (p=${fmtP(best[2])}).</div>`; })() : ""}
+    ${t._gap < CLOSE_GAP && t._rankReal === 1 ? (() => { const real = t.top.filter((a) => !t._blocked.includes(a)); return `<div class="note">Close call: <b class="ar">${esc(visibleAlways(real[1][1]))}</b> was only ${t._gap.toFixed(3)} behind.</div>`; })() : ""}
+
+    <h2>Context</h2>
+    ${contextHtml(r, i)}
+
+    <h2>Top ${t.top.length} candidates at this step</h2>
+    <table class="alts">
+      <thead><tr><th>#</th><th>Token</th><th>In context</th><th>p</th><th></th><th>id</th></tr></thead>
+      <tbody>${altRows}
+      ${inTop ? "" : `<tr class="chosen"><td class="muted">${t.rank}</td><td class="t ar" dir="auto">${esc(visibleAlways(t.text))}</td><td></td><td><div class="pbar"><span style="width:${Math.max(1, t.prob * 100)}%"></span><em>${fmtP(t.prob)}</em></div></td><td><span class="tag" style="color:var(--accent)">picked</span></td><td class="muted small">${t.id}</td></tr>`}
+      </tbody>
+    </table>
+    <div class="small muted" style="margin-top:4px">· = space, ⏎ = new line. "In context" glues the candidate to the previous text so Arabic word pieces are readable.</div>
+
+    <h2>Flag selection</h2>
+    <div class="form">
+      <div class="ctx ar" dir="${r._dir}">${esc(selText) || "∅"}</div>
+      <div class="small muted">tokens ${rg[0]}–${rg[1]} · <kbd>Shift</kbd>+click to extend</div>
+      <div class="row">
+        <select id="flagType">${FLAG_TYPES.map(([k, l]) => `<option value="${k}">${l}</option>`).join("")}</select>
+      </div>
+      <input type="text" id="flagFix" class="ar" dir="auto" placeholder="What a native speaker would write (optional)">
+      <textarea id="flagNote" rows="2" placeholder="Note (optional)"></textarea>
+      <button class="primary" id="addFlag">Add flag</button>
+    </div>
+    ${flagsHtml}`;
+}
+
+// ---------------------------------------------------------------- flags
+function addFlag() {
+  const r = cur(), rg = selRange();
+  if (!r || !rg) return;
+  const toks = r.tokens.slice(rg[0], rg[1] + 1);
+  const fix = $("#flagFix").value.trim();
+  const first = r.tokens[rg[0]];
+  // Approximate Phase 1 signal: does the correction start with one of the top-10 alternatives?
+  let corrRank = null, corrProb = null;
+  if (fix) {
+    const lead = first.text.match(/^\s*/)[0];
+    first.top.forEach((a, k) => {
+      const alt = a[1].trimStart();
+      if (corrRank === null && alt && (lead + fix).trimStart().startsWith(alt) && a[0] !== first.id) { corrRank = k + 1; corrProb = a[2]; }
+    });
+  }
+  state.flags.push({
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    key: r._key, model: r.model, prompt_id: r.prompt_id, version: r.version, setting: r.setting, prompt_hash: r.prompt_hash,
+    token_start: rg[0], token_end: rg[1], text: toks.map((t) => t.text).join(""), token_ids: toks.map((t) => t.id),
+    token_probs: toks.map((t) => t.prob), first_token_top: first.top,
+    type: $("#flagType").value, correction: fix, correction_rank: corrRank, correction_prob: corrProb,
+    note: $("#flagNote").value.trim(), created_at: new Date().toISOString(),
+  });
+  saveFlags();
+  renderList();
+  renderStream(r);
+  renderDetail();
+}
+
+function deleteFlag(id) {
+  state.flags = state.flags.filter((f) => f.id !== id);
+  saveFlags();
+  renderList();
+  if (state.tab === "tokens" && state.sub === "tokens" && cur() && cur().tokens.length) renderStream(cur());
+  renderDetail();
+}
+
+function exportFlags() {
+  if (!state.flags.length) { alert("No flags yet."); return; }
+  const blob = new Blob([state.flags.map((f) => JSON.stringify(f)).join("\n") + "\n"], { type: "application/x-ndjson" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `flags_${new Date().toISOString().slice(0, 10)}.jsonl`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function importFlags(text) {
+  const recs = parseJsonl(text, "flags");
+  const have = new Set(state.flags.map((f) => f.id));
+  let added = 0;
+  for (const f of recs) if (f.id && !have.has(f.id)) { state.flags.push(f); added++; }
+  saveFlags();
+  alert(`Imported ${added} flag(s).`);
+  applyFilters();
+  render();
+}
+
+// ---------------------------------------------------------------- compare tab
+function renderCompareTab() {
+  const ids = [...new Set(state.records.map((r) => r.prompt_id))].sort();
+  const models = [...new Set(state.records.map((r) => r.model))];
+  if (!state.compareId || !ids.includes(state.compareId)) state.compareId = cur() ? cur().prompt_id : ids[0];
+  if (!state.compareModel || !models.includes(state.compareModel)) state.compareModel = cur() ? cur().model : models[0];
+  const recs = state.records.filter((r) => r.prompt_id === state.compareId && r.model === state.compareModel);
+  const versions = [...new Set(recs.map((r) => r.version))].sort((a, b) => VERSION_ORDER.indexOf(a) - VERSION_ORDER.indexOf(b));
+  const settings = [...new Set(recs.map((r) => r.setting))].sort();
+  const cell = (r) => !r ? `<div class="cell muted">—</div>` : `
+    <div class="cell" data-open="${r._i}">
+      <div class="meta">
+        <span class="badge">${r.n_new_tokens} tok</span>
+        ${r.hit_max_tokens ? `<span class="badge warn">cut</span>` : ""}
+        ${r._s.n ? `<span class="badge">p̄ ${r._s.meanProb.toFixed(2)}</span><span class="badge">close ${pct(r._s.close / (r._s.n || 1))}</span>` : ""}
+        ${r._s.latinShare > 0.05 ? `<span class="badge blue">Lat ${pct(r._s.latinShare)}</span>` : ""}
+        ${flagsFor(r).length ? `<span class="badge flag">⚑${flagsFor(r).length}</span>` : ""}
+      </div>
+      <div class="txt ar" dir="auto">${esc(r.answer)}</div>
+    </div>`;
+  $("#center").innerHTML = `
+    <div class="toolbar">
+      <label>Prompt <select id="cmpId">${ids.map((x) => `<option ${x === state.compareId ? "selected" : ""}>${esc(x)}</option>`).join("")}</select></label>
+      ${models.length > 1 ? `<label>Model <select id="cmpModel">${models.map((x) => `<option ${x === state.compareModel ? "selected" : ""}>${esc(x)}</option>`).join("")}</select></label>` : ""}
+      <span class="muted small">Same request, every version and decoding setting side by side. Click an answer to inspect its tokens.</span>
+    </div>
+    <div class="grid" style="grid-template-columns:130px repeat(${settings.length}, 1fr)">
+      <div></div>${settings.map((s) => `<div class="colh">${esc(s)}</div>`).join("")}
+      ${versions.map((v) => {
+        const any = recs.find((r) => r.version === v);
+        return `<div class="rowh">${esc(VERSION_LABEL[v] || v)}<div class="small muted ar" dir="auto" style="font-weight:400;margin-top:4px">${esc(any.prompt)}</div></div>` +
+          settings.map((s) => cell(recs.find((r) => r.version === v && r.setting === s))).join("");
+      }).join("")}
+    </div>`;
+}
+
+// ---------------------------------------------------------------- overview tab
+function aggregate(recs) {
+  const withTok = recs.filter((r) => r._s.n);
+  const toks = withTok.reduce((s, r) => s + r._s.n, 0) || 1;
+  return {
+    n: recs.length,
+    meanTok: recs.reduce((s, r) => s + r.n_new_tokens, 0) / (recs.length || 1),
+    cut: recs.filter((r) => r.hit_max_tokens).length / (recs.length || 1),
+    meanProb: withTok.reduce((s, r) => s + r._s.meanProb * r._s.n, 0) / toks,
+    meanEnt: withTok.reduce((s, r) => s + r._s.meanEnt * r._s.n, 0) / toks,
+    close: withTok.reduce((s, r) => s + r._s.close, 0) / toks,
+    below: withTok.reduce((s, r) => s + r._s.below, 0) / toks,
+    latin: withTok.reduce((s, r) => s + r._s.sc.latin, 0) / (withTok.reduce((s, r) => s + r._s.sc.latin + r._s.sc.arabic + r._s.sc.other, 0) || 1),
+    flags: recs.reduce((s, r) => s + flagsFor(r).length, 0),
+  };
+}
+
+function renderOverviewTab() {
+  const groups = new Map();
+  for (const r of state.records) {
+    const k = `${r.model}|${r.version}|${r.setting}`;
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(r);
+  }
+  const keys = [...groups.keys()].sort((a, b) => {
+    const [ma, va, sa] = a.split("|"), [mb, vb, sb] = b.split("|");
+    return ma.localeCompare(mb) || VERSION_ORDER.indexOf(va) - VERSION_ORDER.indexOf(vb) || sa.localeCompare(sb);
+  });
+  const rows = keys.map((k) => {
+    const [m, v, s] = k.split("|"), a = aggregate(groups.get(k));
+    return `<tr><td>${esc(VERSION_LABEL[v] || v)}${new Set(state.records.map((r) => r.model)).size > 1 ? ` <span class="muted small">${esc(m)}</span>` : ""}</td><td>${esc(s)}</td>
+      <td>${a.n}</td><td>${a.meanTok.toFixed(0)}</td><td class="${a.cut > 0.3 ? "hi" : ""}">${pct(a.cut)}</td>
+      <td>${a.meanProb.toFixed(3)}</td><td>${a.meanEnt.toFixed(2)}</td><td>${pct(a.close, 1)}</td>
+      <td>${s === "greedy" ? '<span class="muted">—</span>' : pct(a.below, 1)}</td><td class="${a.latin > 0.1 ? "hi" : ""}">${pct(a.latin, 1)}</td><td>${a.flags}</td></tr>`;
+  }).join("");
+
+  $("#center").innerHTML = `
+    <h3 style="margin:0 0 8px">By prompt version and decoding setting</h3>
+    <table class="ov">
+      <thead><tr><th>Version</th><th>Setting</th><th>Answers</th><th>Mean tokens</th><th title="Answers stopped at the token limit">Cut</th>
+        <th title="Mean probability of picked tokens">Mean p</th><th title="Mean entropy per step (nats)">Mean entropy</th>
+        <th title="Tokens where top-1 beat top-2 by less than ${CLOSE_GAP}">Close calls</th><th title="Tokens sampled below rank 1">Below #1</th>
+        <th title="Latin-script share of word tokens: English/French/Arabizi drift">Latin</th><th>Flags</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <p class="small muted">Close calls are the places a decoding intervention could flip a word. "Latin" is high for Arabizi by design; elsewhere it signals English/French drift.</p>
+
+    <h3 style="margin:22px 0 8px">Find a word in all answers</h3>
+    <div class="toolbar">
+      <input type="search" id="wordQ" class="ar" dir="auto" placeholder="e.g. الآن, دابا, ماذا, كيف…" value="${esc(state.searchQ)}" style="min-width:260px">
+      <span class="small muted">Shows each place it was generated and what the model ranked next to it at that step.</span>
+    </div>
+    <div id="wordRes"></div>`;
+  renderWordSearch();
+}
+
+function tokenAt(r, pos) {
+  let lo = 0, hi = r._off.length - 1;
+  while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (r._off[mid] <= pos) lo = mid; else hi = mid - 1; }
+  return lo;
+}
+
+function renderWordSearch() {
+  const q = state.searchQ.trim();
+  const box = $("#wordRes");
+  if (!box) return;
+  if (!q) { box.innerHTML = ""; return; }
+  const res = [];
+  const perKey = {};
+  for (const r of state.records) {
+    if (!r._s.n) continue;
+    let p = r._joined.indexOf(q);
+    while (p >= 0) {
+      const k = `${r.version} · ${r.setting}`;
+      perKey[k] = (perKey[k] || 0) + 1;
+      if (res.length < 200) res.push({ r, p, ti: tokenAt(r, p), tj: tokenAt(r, p + q.length - 1) });
+      p = r._joined.indexOf(q, p + 1);
+    }
+  }
+  const total = Object.values(perKey).reduce((a, b) => a + b, 0);
+  box.innerHTML = `<p class="small"><b>${total}</b> occurrence(s)${total ? ": " + Object.entries(perKey).map(([k, v]) => `${esc(k)} <b>${v}</b>`).join(" · ") : ""}${total > 200 ? " (first 200 shown)" : ""}</p>` +
+    res.map(({ r, p, ti, tj }) => {
+      const a = Math.max(0, p - 50), b = Math.min(r._joined.length, p + q.length + 40);
+      const t = r.tokens[ti];
+      return `<div class="res" data-open="${r._i}" data-tok="${ti}" data-tok2="${tj}">
+        <div class="small muted">${esc(r.prompt_id)} · ${esc(VERSION_LABEL[r.version] || r.version)} · ${esc(r.setting)} · token #${ti}</div>
+        <div class="snip ar" dir="${r._dir}">${a > 0 ? "…" : ""}${esc(r._joined.slice(a, p))}<mark>${esc(r._joined.slice(p, p + q.length))}</mark>${esc(r._joined.slice(p + q.length, b))}…</div>
+        <div class="small">first token <b class="ar">${esc(visibleAlways(t.text))}</b> p=${fmtP(t.prob)} · alternatives:
+          ${t.top.filter((x) => x[0] !== t.id).slice(0, 5).map((x) => `<span class="ar">${esc(visibleAlways(x[1]))}</span> <span class="muted">${fmtP(x[2])}</span>`).join(" · ")}</div>
+      </div>`;
+    }).join("");
+}
+
+// ---------------------------------------------------------------- events
+function readFile(file, cb) {
+  const fr = new FileReader();
+  fr.onload = () => cb(fr.result, file.name);
+  fr.readAsText(file, "utf-8");
+}
+
+$("#loadBtn").onclick = () => $("#fileInput").click();
+$("#fileInput").onchange = (e) => { for (const f of e.target.files) readFile(f, (txt, name) => addRecords(parseJsonl(txt, name), name)); e.target.value = ""; };
+$("#importBtn").onclick = () => $("#importInput").click();
+$("#importInput").onchange = (e) => { const f = e.target.files[0]; if (f) readFile(f, (txt) => importFlags(txt)); e.target.value = ""; };
+$("#exportBtn").onclick = exportFlags;
+$("#themeBtn").onclick = () => {
+  const root = document.documentElement;
+  const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  root.dataset.theme = dark ? "light" : "dark";
+};
+
+["#q", "#fVersion", "#fSetting", "#fCategory", "#fModel", "#fHit", "#fFlag"].forEach((id) => {
+  $(id).addEventListener(id === "#q" ? "input" : "change", applyFilters);
+});
+
+$("#tabs").onclick = (e) => {
+  const b = e.target.closest("button[data-tab]");
+  if (!b) return;
+  state.tab = b.dataset.tab;
+  render();
+};
+
+$("#list").onclick = (e) => {
+  const it = e.target.closest(".item");
+  if (!it) return;
+  openRecord(+it.dataset.i);
+  state.tab = "tokens";
+  render();
+};
+
+$("#center").addEventListener("click", (e) => {
+  const tok = e.target.closest("#stream .tok");
+  if (tok) { setFocus(+tok.dataset.i, e.shiftKey); return; }
+  const sub = e.target.closest("#subtabs button");
+  if (sub) { state.sub = sub.dataset.sub; render(); return; }
+  const open = e.target.closest("[data-open]");
+  if (open) {
+    const ti = open.dataset.tok !== undefined ? +open.dataset.tok : -1;
+    openRecord(+open.dataset.open, ti);
+    if (ti >= 0 && open.dataset.tok2 !== undefined) state.sel = { a: ti, b: +open.dataset.tok2 };
+    state.tab = "tokens"; state.sub = "tokens";
+    render();
+    const el = document.querySelector(`#stream .tok[data-i="${ti}"]`);
+    if (el) el.scrollIntoView({ block: "center" });
+  }
+});
+
+$("#center").addEventListener("change", (e) => {
+  if (e.target.id === "mode") { state.mode = e.target.value; saveUi(); render(); }
+  else if (e.target.id === "ws") { state.ws = e.target.checked; saveUi(); render(); }
+  else if (e.target.id === "borders") { state.borders = e.target.checked; saveUi(); render(); }
+  else if (e.target.id === "cmpId") { state.compareId = e.target.value; render(); }
+  else if (e.target.id === "cmpModel") { state.compareModel = e.target.value; render(); }
+});
+$("#center").addEventListener("input", (e) => {
+  if (e.target.id === "wordQ") { state.searchQ = e.target.value; renderWordSearch(); }
+});
+
+$("#detail").addEventListener("click", (e) => {
+  if (e.target.id === "addFlag") { addFlag(); return; }
+  const del = e.target.closest("[data-del]");
+  if (del) { e.stopPropagation(); deleteFlag(del.dataset.del); return; }
+  const fi = e.target.closest("[data-flag]");
+  if (fi) {
+    const f = state.flags.find((x) => x.id === fi.dataset.flag);
+    if (f) { state.sel = { a: f.token_start, b: f.token_end }; state.focus = f.token_start; updateStreamMarks(); renderDetail(); }
+  }
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.target.matches("input, textarea, select")) {
+    if (e.key === "Escape") e.target.blur();
+    return;
+  }
+  const r = cur();
+  if (e.key === "[") { stepRecord(-1); e.preventDefault(); }
+  else if (e.key === "]") { stepRecord(1); e.preventDefault(); }
+  else if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && r && state.tab === "tokens" && state.sub === "tokens") {
+    const forward = (e.key === "ArrowLeft") === (r._dir === "rtl");
+    const from = state.focus < 0 ? (forward ? -1 : r.tokens.length) : state.focus;
+    setFocus(from + (forward ? 1 : -1), e.shiftKey);
+    e.preventDefault();
+  } else if (e.key === "Escape") { state.focus = -1; state.sel = null; updateStreamMarks(); renderDetail(); }
+  else if ((e.key === "f" || e.key === "F") && $("#flagFix")) { $("#flagFix").focus(); e.preventDefault(); }
+});
+
+// drag & drop
+let dragDepth = 0;
+document.addEventListener("dragenter", (e) => { e.preventDefault(); dragDepth++; document.body.classList.add("dragging"); });
+document.addEventListener("dragleave", () => { if (--dragDepth <= 0) { dragDepth = 0; document.body.classList.remove("dragging"); } });
+document.addEventListener("dragover", (e) => e.preventDefault());
+document.addEventListener("drop", (e) => {
+  e.preventDefault(); dragDepth = 0; document.body.classList.remove("dragging");
+  for (const f of e.dataTransfer.files) readFile(f, (txt, name) => addRecords(parseJsonl(txt, name), name));
+});
+
+// ?data=path/to/file.jsonl (when the repo is served over http)
+(async () => {
+  saveFlags();
+  const data = new URLSearchParams(location.search).getAll("data");
+  for (const url of data) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(res.status);
+      addRecords(parseJsonl(await res.text(), url), url.split("/").pop());
+    } catch (err) { console.error("Could not load", url, err); }
+  }
+  render();
+})();
+</script>
+</body>
+</html>
