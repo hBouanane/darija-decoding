@@ -205,6 +205,27 @@ table.ov td.hi { color: var(--warn); font-weight: 600; }
 .res:hover { border-color: var(--accent); }
 .res .snip { font-size: 16px; white-space: pre-wrap; }
 .res mark { background: var(--sel); color: inherit; border-radius: 3px; }
+/* ---------- tokenizer tab ---------- */
+body.full #sidebar, body.full #detail { display: none; }
+.pieces { display: inline-flex; gap: 2px; flex-wrap: wrap; direction: ltr; }
+.piece {
+  font-size: 15px; padding: 0 4px; border-radius: 3px; white-space: pre;
+  background: rgba(var(--heat-rank), .12); border: 1px solid rgba(var(--heat-rank), .25);
+}
+.tokline { font-size: 19px; line-height: 2.1; white-space: pre-wrap; word-break: break-word; }
+.tokline span { border-radius: 3px; padding: 2px 0; }
+.tokline span.c0 { background: rgba(37, 99, 235, .16); }
+.tokline span.c1 { background: rgba(234, 88, 12, .16); }
+.tokline span.c2 { background: rgba(22, 163, 74, .16); }
+.tokline span.c3 { background: rgba(147, 51, 234, .16); }
+.tokline span.c4 { background: rgba(202, 138, 4, .2); }
+.pair { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin-bottom: 10px; }
+.pair .lang { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-top: 6px; display: flex; justify-content: space-between; }
+table.ov tr.click { cursor: pointer; }
+table.ov tr.click:hover td { background: var(--accent-soft); }
+table.ov tr.on td { background: var(--accent-soft); }
+.costbar { display: inline-block; height: 8px; background: rgba(var(--heat-prob), .5); border-radius: 2px; vertical-align: middle; }
+.pager { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
 .empty { max-width: 560px; margin: 60px auto; text-align: center; color: var(--muted); }
 .empty h2 { color: var(--ink); }
 #drop {
@@ -221,6 +242,7 @@ body.dragging #drop { display: flex; }
     <button data-tab="tokens" class="on">Tokens</button>
     <button data-tab="compare">Compare</button>
     <button data-tab="overview">Overview</button>
+    <button data-tab="tokenizer">Tokenizer</button>
   </div>
   <span class="file" id="fileName">no file loaded</span>
   <span class="spacer"></span>
@@ -381,6 +403,13 @@ function parseJsonl(text, name) {
 }
 
 function addRecords(recs, name) {
+  // Tokenization files (from tokenizer_stats.py) go to the Tokenizer tab.
+  const tokRecs = recs.filter((r) => r.kind === "tokenization");
+  if (tokRecs.length) {
+    addTokenization(tokRecs, name);
+    recs = recs.filter((r) => r.kind !== "tokenization");
+    if (!recs.length) return;
+  }
   const missingTokens = recs.filter((r) => !Array.isArray(r.tokens)).length;
   for (const r of recs) {
     if (!Array.isArray(r.tokens)) r.tokens = [];
@@ -490,6 +519,8 @@ function selRange() {
 // ---------------------------------------------------------------- rendering: shared
 function render() {
   document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === state.tab));
+  document.body.classList.toggle("full", state.tab === "tokenizer");
+  if (state.tab === "tokenizer") { renderTokenizerTab(); return; }
   if (!state.records.length) { renderEmpty(); return; }
   if (state.tab === "tokens") renderTokensTab();
   else if (state.tab === "compare") renderCompareTab();
@@ -919,6 +950,224 @@ function renderWordSearch() {
       </div>`;
     }).join("");
 }
+
+// ---------------------------------------------------------------- tokenizer tab
+// Data: one record per sentence pair, {texts: {english, darija, arabizi?},
+// words: {lang: [[word, start, end]]}, tok: {model: {lang: [[id, text, start, end]]}}}.
+const TK = {
+  recs: [], files: [], models: [], langs: [], sources: [],
+  totals: null, words: null,
+  ui: { model: null, wordLang: "darija", sort: "cost", minPieces: 1, wordQ: "", source: "", page: 0, pairQ: "", showModels: "one", selWord: null },
+};
+const LANG_LABEL = { english: "English", darija: "Darija (Arabic script)", arabizi: "Arabizi" };
+
+function wordPieces(words, toks) {
+  // For each word, the tokens overlapping its span (both lists are in text order).
+  const out = [];
+  let j = 0;
+  for (const [, ws, we] of words) {
+    while (j < toks.length && toks[j][3] <= ws) j++;
+    const ps = [];
+    for (let k = j; k < toks.length && toks[k][2] < we; k++) ps.push(toks[k][1]);
+    out.push(ps);
+  }
+  return out;
+}
+
+function addTokenization(recs, name) {
+  TK.recs.push(...recs);
+  TK.files.push(name);
+  TK.models = [...new Set(TK.recs.flatMap((r) => Object.keys(r.tok)))];
+  TK.langs = ["english", "darija", "arabizi"].filter((l) => TK.recs.some((r) => r.texts[l]));
+  TK.sources = [...new Set(TK.recs.map((r) => r.source || "?"))].sort();
+  if (!TK.ui.model || !TK.models.includes(TK.ui.model)) TK.ui.model = TK.models[0];
+
+  // Totals per model x language, per source, and a word table per language.
+  const totals = {}, bySource = {}, words = {};
+  for (const r of TK.recs) {
+    const src = r.source || "?";
+    for (const m of TK.models) {
+      const T = (totals[m] ||= {});
+      for (const l of TK.langs) {
+        if (!r.texts[l] || !r.tok[m] || !r.tok[m][l]) continue;
+        const toks = r.tok[m][l], ws = r.words[l];
+        const pp = wordPieces(ws, toks);
+        const t = (T[l] ||= { pairs: 0, words: 0, tokens: 0, single: 0, chars: 0, enTokens: 0 });
+        t.pairs++; t.words += ws.length; t.tokens += toks.length; t.chars += r.texts[l].length;
+        t.single += pp.filter((p) => p.length === 1).length;
+        t.enTokens += r.tok[m].english ? r.tok[m].english.length : 0;
+        if (l === "darija") {
+          const s = ((bySource[m] ||= {})[src] ||= { pairs: 0, words: 0, tokens: 0, enTokens: 0 });
+          s.pairs++; s.words += ws.length; s.tokens += toks.length; s.enTokens += r.tok[m].english.length;
+        }
+        ws.forEach(([w], k) => {
+          const W = ((words[l] ||= new Map()).get(w)) || { word: w, count: 0, splits: {}, pairs: [] };
+          if (!W.count) words[l].set(w, W);
+          if (!W.splits[m]) W.splits[m] = pp[k];
+          if (m === TK.models[0]) { W.count++; if (W.pairs.length < 50) W.pairs.push(r); }
+        });
+      }
+    }
+  }
+  TK.totals = totals; TK.bySource = bySource; TK.words = words;
+  $("#fileName").textContent = [...state.files, ...TK.files].join(", ") + (state.records.length ? ` · ${state.records.length} answers` : "") + ` · ${TK.recs.length} pairs`;
+  if (!state.records.length) state.tab = "tokenizer";
+  render();
+}
+
+function tokLine(toks, dir) {
+  // Alternating colours make token borders visible; ZWJ keeps Arabic letters joined.
+  return `<div class="tokline ar" dir="${dir}">` + toks.map((t, i) => {
+    let txt = t[1];
+    if (i > 0 && AR_JOIN_START.test(txt) && AR_JOIN_END.test(toks[i - 1][1])) txt = "‍" + txt;
+    if (i < toks.length - 1 && AR_JOIN_END.test(txt) && AR_JOIN_START.test(toks[i + 1][1])) txt += "‍";
+    return `<span class="c${i % 5}" title="#${i} · id ${t[0]} · ${esc(visibleAlways(t[1]))}">${esc(txt)}</span>`;
+  }).join("") + `</div>`;
+}
+
+function piecesHtml(ps) {
+  // First piece on the right for Arabic words, on the left otherwise.
+  const rtl = AR_CHAR.test((ps || []).join(""));
+  return `<span class="pieces" style="direction:${rtl ? "rtl" : "ltr"}">${(ps || []).map((p) => `<span class="piece ar">${esc(visibleAlways(p))}</span>`).join("")}</span>`;
+}
+
+function renderTokenizerTab() {
+  const c = $("#center");
+  if (!TK.recs.length) {
+    c.innerHTML = `<div class="empty"><h2>Load a tokenization file</h2>
+      <p>Run <code>python -m darija_decoding.tokenizer_stats</code>, then load
+      <code>outputs/tokenization/*.jsonl</code> with <b>Load .jsonl</b>.</p>
+      <p class="small">Shows how each model's tokenizer splits the same sentences in English, Darija and Arabizi.</p></div>`;
+    return;
+  }
+  const u = TK.ui;
+
+  // 1. Summary table
+  const sumRows = TK.models.flatMap((m) => TK.langs.map((l) => {
+    const t = TK.totals[m] && TK.totals[m][l];
+    if (!t) return "";
+    const premium = l === "english" ? "—" : `×${(t.tokens / t.enTokens).toFixed(2)}`;
+    return `<tr><td>${esc(m)}</td><td>${esc(LANG_LABEL[l])}</td><td>${t.pairs}</td><td>${t.words}</td><td>${t.tokens}</td>
+      <td class="${t.tokens / t.words > 2 ? "hi" : ""}">${(t.tokens / t.words).toFixed(2)}</td><td>${pct(t.single / t.words)}</td>
+      <td>${(t.chars / t.tokens).toFixed(2)}</td><td>${premium}</td></tr>`;
+  })).join("");
+
+  // 2. Word table
+  const W = TK.words[u.wordLang] ? [...TK.words[u.wordLang].values()] : [];
+  const nPieces = (w) => (w.splits[u.model] || []).length;
+  let list = W.filter((w) => nPieces(w) >= u.minPieces && (!u.wordQ || w.word.includes(u.wordQ)));
+  const cost = (w) => w.count * (nPieces(w) - 1);
+  list.sort(u.sort === "cost" ? (a, b) => cost(b) - cost(a) || b.count - a.count : (a, b) => b.count - a.count);
+  const maxCost = Math.max(1, ...list.slice(0, 150).map(cost));
+  const wordRows = list.slice(0, 150).map((w) => `
+    <tr class="click${u.selWord === w.word ? " on" : ""}" data-word="${esc(w.word)}">
+      <td class="ar" dir="auto" style="font-size:17px">${esc(w.word)}</td><td>${w.count}</td>
+      ${TK.models.map((m) => `<td style="text-align:left">${piecesHtml(w.splits[m])} <span class="muted small">${(w.splits[m] || []).length}</span></td>`).join("")}
+      <td style="text-align:left"><span class="costbar" style="width:${(60 * cost(w)) / maxCost}px"></span> <span class="small muted">${cost(w)}</span></td>
+    </tr>`).join("");
+
+  // 3. Sentence pairs
+  let pairs = TK.recs.filter((r) => (!u.source || r.source === u.source) &&
+    (!u.pairQ || Object.values(r.texts).some((t) => t.includes(u.pairQ))));
+  if (u.selWord) pairs = pairs.filter((r) => (r.words[u.wordLang] || []).some((w) => w[0] === u.selWord));
+  const per = 15, pages = Math.max(1, Math.ceil(pairs.length / per));
+  u.page = Math.min(u.page, pages - 1);
+  const shownModels = u.showModels === "all" ? TK.models : [u.model];
+  const pairHtml = pairs.slice(u.page * per, (u.page + 1) * per).map((r) => `
+    <div class="pair">
+      <div class="small muted">#${r.id} · ${esc(r.source || "")}</div>
+      ${TK.langs.filter((l) => r.texts[l]).map((l) => shownModels.map((m) => {
+        const toks = (r.tok[m] || {})[l] || [];
+        return `<div class="lang"><span>${esc(LANG_LABEL[l])}${shownModels.length > 1 ? ` · ${esc(m)}` : ""}</span>
+          <span>${toks.length} tokens · ${r.words[l].length} words · ${(toks.length / Math.max(1, r.words[l].length)).toFixed(2)}/word</span></div>
+          ${tokLine(toks, l === "darija" ? "rtl" : "ltr")}`;
+      }).join("")).join("")}
+    </div>`).join("");
+
+  // By source (Darija), for the selected tokenizer
+  const src = TK.bySource[u.model] || {};
+  const srcRows = Object.entries(src).sort((a, b) => b[1].pairs - a[1].pairs).map(([s, v]) => `
+    <tr class="click" data-source="${esc(s)}"><td>${esc(s.replace("BounharAbdelaziz/Terjman-v2-English-Darija-Dataset-580K::", "Terjman::"))}</td><td>${v.pairs}</td>
+      <td>${(v.tokens / v.words).toFixed(2)}</td><td>×${(v.tokens / v.enTokens).toFixed(2)}</td></tr>`).join("");
+
+  c.innerHTML = `
+    <div class="toolbar">
+      <label>Tokenizer <select id="tkModel">${TK.models.map((m) => `<option ${m === u.model ? "selected" : ""}>${esc(m)}</option>`).join("")}</select></label>
+      <span class="small muted">${TK.recs.length} sentence pairs · ${esc(TK.files.join(", "))}</span>
+    </div>
+
+    <h3 style="margin:4px 0 8px">How much each language gets split</h3>
+    <table class="ov">
+      <thead><tr><th>Tokenizer</th><th>Language</th><th>Pairs</th><th>Words</th><th>Tokens</th>
+        <th title="Average number of tokens per word. 1.0 = every word is one token.">Tokens / word</th>
+        <th title="Share of words that are a single token">1-token words</th>
+        <th title="Average characters per token">Chars / token</th>
+        <th title="Tokens needed for this language divided by tokens for the English of the same sentences">vs English</th></tr></thead>
+      <tbody>${sumRows}</tbody>
+    </table>
+    <p class="small muted">"vs English" compares the same sentences: ×1.60 means the Darija version costs 60% more tokens than the English one.
+      Arabizi rows only cover pairs that have an Arabizi version.</p>
+
+    <h3 style="margin:22px 0 8px">Words and how they are split</h3>
+    <div class="toolbar">
+      <label>Language <select id="tkWordLang">${TK.langs.map((l) => `<option value="${l}" ${l === u.wordLang ? "selected" : ""}>${LANG_LABEL[l]}</option>`).join("")}</select></label>
+      <label>Sort <select id="tkSort"><option value="cost" ${u.sort === "cost" ? "selected" : ""}>most costly (count × extra pieces)</option><option value="count" ${u.sort === "count" ? "selected" : ""}>most frequent</option></select></label>
+      <label>Min pieces (${esc(u.model)}) <select id="tkMin">${[1, 2, 3, 4].map((n) => `<option ${n === u.minPieces ? "selected" : ""}>${n}</option>`).join("")}</select></label>
+      <input type="search" id="tkWordQ" class="ar" dir="auto" placeholder="Find a word…" value="${esc(u.wordQ)}">
+      <span class="small muted">${list.length} words · click one to see its sentences</span>
+    </div>
+    <div style="max-height:460px;overflow:auto;border-radius:10px">
+    <table class="ov">
+      <thead><tr><th>Word</th><th>Count</th>${TK.models.map((m) => `<th style="text-align:left">${esc(m)}</th>`).join("")}<th style="text-align:left" title="count × (pieces − 1) for the selected tokenizer: extra tokens this word costs across the sample">Extra tokens</th></tr></thead>
+      <tbody>${wordRows}</tbody>
+    </table></div>
+
+    <h3 style="margin:22px 0 8px">Darija by source <span class="small muted" style="font-weight:400">(${esc(u.model)}; click to filter the sentences below)</span></h3>
+    <table class="ov"><thead><tr><th>Source</th><th>Pairs</th><th>Tokens / word</th><th>vs English</th></tr></thead><tbody>${srcRows}</tbody></table>
+
+    <h3 style="margin:22px 0 8px">Sentences</h3>
+    <div class="toolbar">
+      <label>Source <select id="tkSource"><option value="">All sources</option>${TK.sources.map((s) => `<option value="${esc(s)}" ${s === u.source ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></label>
+      <label>Show <select id="tkShow"><option value="one" ${u.showModels === "one" ? "selected" : ""}>selected tokenizer</option><option value="all" ${u.showModels === "all" ? "selected" : ""}>all tokenizers</option></select></label>
+      <input type="search" id="tkPairQ" class="ar" dir="auto" placeholder="Search sentences…" value="${esc(u.pairQ)}">
+      ${u.selWord ? `<span class="badge blue">word: <span class="ar">${esc(u.selWord)}</span> <a href="#" id="tkClearWord">✕</a></span>` : ""}
+    </div>
+    <div class="pager"><button id="tkPrev" ${u.page ? "" : "disabled"}>‹</button><span class="small">page ${u.page + 1} / ${pages} · ${pairs.length} pairs</span><button id="tkNext" ${u.page < pages - 1 ? "" : "disabled"}>›</button></div>
+    ${pairHtml || `<p class="hint">No sentences match.</p>`}`;
+}
+
+$("#center").addEventListener("change", (e) => {
+  const u = TK.ui, id = e.target.id;
+  if (!id.startsWith("tk")) return;
+  if (id === "tkModel") u.model = e.target.value;
+  else if (id === "tkWordLang") { u.wordLang = e.target.value; u.selWord = null; }
+  else if (id === "tkSort") u.sort = e.target.value;
+  else if (id === "tkMin") u.minPieces = +e.target.value;
+  else if (id === "tkSource") { u.source = e.target.value; u.page = 0; }
+  else if (id === "tkShow") u.showModels = e.target.value;
+  else return;
+  render();
+});
+$("#center").addEventListener("keydown", (e) => {
+  if (e.key !== "Enter") return;
+  if (e.target.id === "tkWordQ") { TK.ui.wordQ = e.target.value.trim(); render(); }
+  else if (e.target.id === "tkPairQ") { TK.ui.pairQ = e.target.value.trim(); TK.ui.page = 0; render(); }
+});
+$("#center").addEventListener("search", (e) => {
+  if (e.target.id === "tkWordQ") { TK.ui.wordQ = e.target.value.trim(); render(); }
+  else if (e.target.id === "tkPairQ") { TK.ui.pairQ = e.target.value.trim(); TK.ui.page = 0; render(); }
+});
+$("#center").addEventListener("click", (e) => {
+  if (state.tab !== "tokenizer") return;
+  const u = TK.ui;
+  const wr = e.target.closest("tr[data-word]");
+  if (wr) { u.selWord = u.selWord === wr.dataset.word ? null : wr.dataset.word; u.page = 0; render(); return; }
+  const sr = e.target.closest("tr[data-source]");
+  if (sr) { u.source = u.source === sr.dataset.source ? "" : sr.dataset.source; u.page = 0; render(); return; }
+  if (e.target.id === "tkClearWord") { e.preventDefault(); u.selWord = null; render(); }
+  else if (e.target.id === "tkPrev") { u.page--; render(); }
+  else if (e.target.id === "tkNext") { u.page++; render(); }
+});
 
 // ---------------------------------------------------------------- events
 function readFile(file, cb) {
