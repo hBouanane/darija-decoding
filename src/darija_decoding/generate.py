@@ -64,13 +64,32 @@ def clean_answer(raw: str, tokenizer) -> str:
     return text.strip()
 
 
-def token_details(logits: torch.Tensor, new_ids: torch.Tensor, tokenizer, k: int) -> list[dict]:
+def blocked_token_ids(model) -> list[int]:
+    """Tokens the model's generation config never lets it emit (e.g. Gemma 4's
+    <image|> and <audio|>). The model can still rank them first, which would
+    distort the logged probabilities, so they're masked before logging."""
+    cfg = model.generation_config
+    ids = set(cfg.suppress_tokens or [])
+    ids.update(seq[0] for seq in (cfg.bad_words_ids or []) if len(seq) == 1)
+    return sorted(ids)
+
+
+def token_details(
+    logits: torch.Tensor, new_ids: torch.Tensor, tokenizer, k: int, blocked_ids: list[int]
+) -> list[dict]:
     """Per generated token: its probability, rank, the step's entropy and the top-k alternatives.
 
     `logits` are the raw model outputs (steps x vocab), before temperature or
     top_p, so the numbers mean the same thing for greedy and sampled runs.
+    Blocked tokens are removed first; the probability the model gave them is
+    kept as `blocked_prob` when it isn't negligible.
     """
-    logprobs = torch.log_softmax(logits.float(), dim=-1)
+    logits = logits.float()
+    blocked_prob = torch.zeros(len(new_ids), device=logits.device)
+    if blocked_ids:
+        blocked_prob = torch.softmax(logits, dim=-1)[:, blocked_ids].sum(dim=-1)
+        logits[:, blocked_ids] = float("-inf")
+    logprobs = torch.log_softmax(logits, dim=-1)
     probs = logprobs.exp()
     chosen = probs.gather(1, new_ids[:, None]).squeeze(1)
     ranks = (probs > chosen[:, None]).sum(dim=-1) + 1
@@ -85,18 +104,17 @@ def token_details(logits: torch.Tensor, new_ids: torch.Tensor, tokenizer, k: int
     details = []
     for step, token_id in enumerate(chosen_ids):
         alt_ids = top_ids[step].tolist()
-        details.append(
-            {
-                "id": token_id,
-                "text": chosen_texts[step],
-                "prob": round(chosen[step].item(), 5),
-                "rank": ranks[step].item(),
-                "entropy": round(entropy[step].item(), 4),
-                "top": [
-                    [i, t, round(p, 5)] for i, t, p in zip(alt_ids, texts(alt_ids), top_probs[step].tolist())
-                ],
-            }
-        )
+        detail = {
+            "id": token_id,
+            "text": chosen_texts[step],
+            "prob": round(chosen[step].item(), 5),
+            "rank": ranks[step].item(),
+            "entropy": round(entropy[step].item(), 4),
+            "top": [[i, t, round(p, 5)] for i, t, p in zip(alt_ids, texts(alt_ids), top_probs[step].tolist())],
+        }
+        if blocked_prob[step] > 0.001:
+            detail["blocked_prob"] = round(blocked_prob[step].item(), 5)
+        details.append(detail)
     return details
 
 
@@ -144,7 +162,7 @@ def generate_one(processor, model, prompt: Prompt, gen_cfg: dict, setting: dict)
         "hit_max_tokens": len(new_ids) >= gen_cfg["max_new_tokens"],
         "seconds": round(seconds, 2),
         # Every generated token, including any thinking-block tokens at the start.
-        "tokens": token_details(logits, new_ids, tokenizer, gen_cfg["top_k_logged"]),
+        "tokens": token_details(logits, new_ids, tokenizer, gen_cfg["top_k_logged"], blocked_token_ids(model)),
     }
 
 
@@ -172,6 +190,7 @@ def write_run_meta(path: Path, args, hf_id: str, quant_cfg: dict, gen_cfg: dict,
         "generation": gen_cfg,
         # Model defaults (e.g. top_k, repetition_penalty) apply unless overridden.
         "model_generation_config": model.generation_config.to_dict(),
+        "blocked_token_ids": blocked_token_ids(model),
         "torch": torch.__version__,
         "transformers": transformers.__version__,
         "gpu": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None,

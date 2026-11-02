@@ -355,7 +355,9 @@ function prep(r, i) {
     sp += t._pAdj; se += t.entropy;
     if (t._gap < CLOSE_GAP) close++;
     if (t._rankReal > 1) below++;
-    if (t._blocked.length) blocked++;
+    // Newer files mask blocked tokens at logging time and store their mass as blocked_prob.
+    t._hadBlocked = t._blocked.length > 0 || (t.blocked_prob || 0) >= 0.5;
+    if (t._hadBlocked) blocked++;
     sc[t._script]++;
     r._off.push(off); off += t.text.length;
   }
@@ -520,7 +522,7 @@ function heat(t) {
   else if (m === "margin") a = Math.max(0, 1 - t._gap / 0.5);
   else if (m === "entropy") a = Math.min(t.entropy / 3, 1);
   else if (m === "rank") a = t._rankReal > 1 ? Math.min(0.4 + 0.15 * Math.log2(t._rankReal), 1) : 0;
-  else if (m === "blocked") a = t._blocked.length ? 1 : 0;
+  else if (m === "blocked") a = t._hadBlocked ? 1 : 0;
   else if (m === "script") { v = SCRIPT_COLOR[t._script]; a = t._script === "punct" ? 0.25 : 0.55; }
   if (!v || a <= 0.02) return "";
   return `rgba(var(${v}), ${(a * 0.6).toFixed(3)})`;
@@ -700,6 +702,7 @@ function renderDetail() {
       <div class="stat"><div class="k">Top-10 mass</div><div class="v">${pct(t.top.reduce((s, a) => s + a[2], 0))}</div></div>
     </div>
     ${t._blocked.length ? `<div class="note">The model's raw #1 was <b>${esc(t._blocked.map((a) => a[1]).join(", "))}</b> (p=${fmtP(t._blocked[0][2])}), a special token generation never outputs, so it wrote the runner-up. Probabilities and gap shown here are rescaled without it; the table keeps raw values.</div>` : ""}
+    ${t.blocked_prob ? `<div class="note">Before masking, the model put p=${fmtP(t.blocked_prob)} on blocked special tokens (e.g. &lt;image|&gt;) that generation never outputs. All numbers here already exclude them.</div>` : ""}
     ${t._rankReal > 1 ? (() => { const best = t.top.find((a) => !t._blocked.includes(a)); return `<div class="note">Sampling picked rank ${t._rankReal}. Greedy would have picked <b class="ar">${esc(visibleAlways(best[1]))}</b> (p=${fmtP(best[2])}).</div>`; })() : ""}
     ${t._gap < CLOSE_GAP && t._rankReal === 1 ? (() => { const real = t.top.filter((a) => !t._blocked.includes(a)); return `<div class="note">Close call: <b class="ar">${esc(visibleAlways(real[1][1]))}</b> was only ${t._gap.toFixed(3)} behind.</div>`; })() : ""}
 
