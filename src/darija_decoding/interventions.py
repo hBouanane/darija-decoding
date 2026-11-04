@@ -1,10 +1,12 @@
 """Decoding interventions.
 
 Word map: for each MSA word and its Darija replacement, find the first token
-where their spellings diverge (they often share the first piece, e.g. هذا and
-هاد both start with " ه") and, at that step only, boost the Darija token and
-lower the MSA one. The bias is conditional on the shared pieces having just
-been generated, so other words that use the same pieces aren't touched.
+where their spellings diverge, and lower the MSA token there. The Darija
+token is boosted only when the two words share pieces before that point
+(e.g. " كيف" + "اش" for كيفاش): the boost then fires only right after the
+shared piece. A Darija boost with no shared piece would fire at every word
+start, which in practice pushed words like " ملي" or " شي" into sentences
+that had no MSA at all.
 This uses transformers' `sequence_bias`: a bias on a sequence's last token,
 applied only when the tokens before it match.
 
@@ -23,18 +25,19 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 WORD_FORMS = (" {}", "{}", " و{}", "و{}")
 
 
-def load_word_map(path: Path) -> list[tuple[str, list[str]]]:
-    return [(p["msa"], p["darija"]) for p in load_yaml(path)["pairs"]]
+def load_word_map(path: Path) -> list[tuple[str, list[str], float | None]]:
+    """(msa, darija words, optional per-pair bias) for each entry."""
+    return [(p["msa"], p["darija"], p.get("bias")) for p in load_yaml(path)["pairs"]]
 
 
 def word_map_bias(
-    encode: Callable[[str], list[int]], pairs: list[tuple[str, list[str]]], bias: float
+    encode: Callable[[str], list[int]], pairs: list[tuple[str, list[str], float | None]], bias: float
 ) -> tuple[dict[tuple[int, ...], float], list[dict]]:
     """Build a `sequence_bias` dict, plus a report of what each pair became.
 
-    A bias on a key with no shared prefix (a single token) applies everywhere,
-    so it's only used when that token is a whole word: biasing a bare piece
-    like " ال" would hit every word that starts with it.
+    `bias` is the default strength; a pair's own `bias` overrides it. A key
+    with no shared prefix (a single token) applies everywhere, so the MSA
+    side is only lowered that way when its token is the whole word.
     """
     seq_bias: dict[tuple[int, ...], float] = {}
     report = []
@@ -45,7 +48,8 @@ def word_map_bias(
         else:
             seq_bias[key] = value
 
-    for msa, darija_words in pairs:
+    for msa, darija_words, pair_bias in pairs:
+        strength = bias if pair_bias is None else pair_bias
         for form in WORD_FORMS:
             m_ids = encode(form.format(msa))
             for darija in darija_words:
@@ -53,14 +57,14 @@ def word_map_bias(
                 k = 0
                 while k < min(len(m_ids), len(d_ids)) and m_ids[k] == d_ids[k]:
                     k += 1
-                boost = k < len(d_ids) and (k > 0 or len(d_ids) == 1)
+                boost = 0 < k < len(d_ids)
                 lower = k < len(m_ids) and (k > 0 or len(m_ids) == 1)
                 if boost:
-                    put(tuple(d_ids[: k + 1]), bias)
+                    put(tuple(d_ids[: k + 1]), strength)
                 if lower:
-                    put(tuple(m_ids[: k + 1]), -bias)
+                    put(tuple(m_ids[: k + 1]), -strength)
                 report.append(
-                    {"msa": msa, "darija": darija, "form": form.format(""), "shared": k,
+                    {"msa": msa, "darija": darija, "form": form.format(""), "shared": k, "bias": strength,
                      "msa_ids": m_ids, "darija_ids": d_ids, "boost": boost, "lower": lower}
                 )
     return seq_bias, report
@@ -77,7 +81,8 @@ def main() -> None:
     hf_id = load_yaml(REPO_ROOT / "configs/models.yaml")["models"][args.model]["hf_id"]
     tok = Tokenizer.from_pretrained(hf_id)
     encode = lambda s: tok.encode(s, add_special_tokens=False).ids
-    seq_bias, report = word_map_bias(encode, load_word_map(args.word_map), 1.0)
+    parser_default_bias = 3.0  # same default as generate.py --word-bias
+    seq_bias, report = word_map_bias(encode, load_word_map(args.word_map), parser_default_bias)
 
     def pieces(ids, k):
         return " + ".join(("[" if i == k else "") + tok.decode([t]) + ("]" if i == k else "") for i, t in enumerate(ids))
@@ -87,7 +92,7 @@ def main() -> None:
         if r["form"] != " ":
             continue
         status = "ok" if r["boost"] and r["lower"] else ("boost only" if r["boost"] else ("lower only" if r["lower"] else "SKIPPED"))
-        print(f"{r['msa']:>8} -> {r['darija']:<8} shared {r['shared']}  {status:<11} "
+        print(f"{r['msa']:>8} -> {r['darija']:<8} bias {r['bias']:<4g} shared {r['shared']}  {status:<11} "
               f"MSA: {pieces(r['msa_ids'], r['shared'])}   Darija: {pieces(r['darija_ids'], r['shared'])}")
 
 

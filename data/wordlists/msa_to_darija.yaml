@@ -6,13 +6,15 @@
 #
 # Each entry: the MSA word, and one or more Darija replacements.
 # Variants with a leading و ("and") are added automatically.
+# Optional `bias` overrides --word-bias for that pair (for MSA words the
+# model is very sure of).
 
 pairs:
   # pronouns / demonstratives
   - {msa: هذا, darija: [هاد]}
   - {msa: هذه, darija: [هادي]}
   - {msa: ذلك, darija: [هداك]}
-  - {msa: أنت, darija: [نتا]}
+  - {msa: أنت, darija: [نتا], bias: 6}   # survived bias 3 in 8 of 10 cases (model p ≈ 0.9)
   - {msa: الذي, darija: [اللي]}
   - {msa: التي, darija: [اللي]}
   - {msa: الذين, darija: [اللي]}

@@ -18,6 +18,7 @@ Interventions (each run goes to its own output file):
 import argparse
 import json
 import re
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -245,6 +246,8 @@ def run_tag(args) -> str:
 
 
 def main() -> None:
+    # Write each progress line as soon as it's printed, even when redirected to a log file.
+    sys.stdout.reconfigure(line_buffering=True)
     args = parse_args()
     models_cfg = load_yaml(args.models_config)
     gen_cfg = load_yaml(args.gen_config)
